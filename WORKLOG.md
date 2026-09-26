@@ -378,3 +378,15 @@
   - browser-shots 中“发言者高亮”检查原为瞬时快照，间歇失败；改为先取发言内容，再在 6 秒内采样高亮。
 
 - **补充**：“怎么注册账号”的首条来源原被手册中的示例句子抢占；已改写手册措辞，并新增首条检索测试（`tests/assistant.test.js` 第 6 项）。单元测试 74 项全部通过。
+
+### 2026-09-26 · Claude · 参赛版“演知思政”本地版本
+
+- **需求**：复用网站主体，另做一个名称为“演知思政——基于Agents协同与对抗的虚拟教研实训工场”的本地版本，换一个端口。
+- **实现**：
+  - `server/brand.js`：新增品牌开关。
+  - `server/server.js`：静态页面与脚本按品牌替换文字；按品牌取 Logo。
+  - 数字客服的系统提示词与回答同步替换；研究数据包 README 同步替换。
+  - 新 Logo：`public/img/brand/szsx/logo-full.png`。
+  - `szsx.env`：端口 8788，独立数据目录 `data-szsx`。
+  - `npm run start:szsx`；`.claude/launch.json` 中的 `yanzhi-szsx`。
+- **测试**：新增 `tests/brand.test.js`；单元测试共 75 项全部通过，原版不受影响。

@@ -1,7 +1,9 @@
 data/
+data-szsx/
 *.db
 *.db-wal
 *.db-shm
 master.key
 .env
+szsx.env
 node_modules/

@@ -20,6 +20,7 @@ import * as jobs from './jobs.js';
 import * as agents from './agents.js';
 import * as study from './study.js';
 import * as assistant from './assistant.js';
+import { BRAND, brandText, brandImage } from './brand.js';
 import { analyzeMaterials } from './knowledge.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -366,8 +367,11 @@ function serveStatic(pathname, res) {
   else if (TEACHER_PAGES.includes(pathname)) file = join(PUBLIC, 'index.html');
   else if (pathname === MANUAL || pathname === `${MANUAL}/`) file = join(PUBLIC, 'manual', 'index.html');
   else { file = normalize(join(PUBLIC, pathname)); if (!file.startsWith(PUBLIC)) return send(res, 403, { error: { code: 'forbidden' } }); }
+  // 品牌版本：Logo 等图片优先取 public/img/brand/<品牌>/ 下的同名文件
+  if (BRAND && pathname.startsWith('/img/') && !pathname.startsWith('/img/brand/')) { const alt = join(PUBLIC, brandImage(pathname.slice(5))); if (existsSync(alt)) file = alt; }
   if (!existsSync(file) || !statSync(file).isFile()) return send(res, 404, { error: { code: 'not_found', message: '页面不存在' } });
-  const b = readFileSync(file);
+  let b = readFileSync(file);
+  if (BRAND && ['.html', '.js'].includes(extname(file))) b = Buffer.from(brandText(b.toString('utf8')), 'utf8');
   res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream', 'content-length': b.length, 'cache-control': extname(file) === '.html' ? 'no-store' : 'no-cache' });
   res.end(b);
 }
@@ -378,7 +382,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const app = createApp();
   app.server.listen(port, host, () => {
     const admins = one(app.db, 'SELECT COUNT(*) n FROM users WHERE is_admin=1').n;
-    console.log(`研思智境平台已启动：http://${host}:${port}/  （管理员后台：/admin）`);
+    console.log(`${BRAND ? BRAND.name : '研思智境'}平台已启动：http://${host}:${port}/  （管理员后台：/admin）`);
     if (!admins) console.log('尚无管理员账号。请运行：npm run init-admin -- --login <登录名>');
   });
 }

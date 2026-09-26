@@ -6,6 +6,7 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run, id, now, getSetting, setSetting, check, audit, json } from './db.js';
 import { resolveProvider, chat } from './models.js';
+import { brandText } from './brand.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const NAME = '思思';
@@ -134,13 +135,14 @@ export function status(db) {
 const PAGE = { '/': '首页', '/seminar': '研课场', '/classroom': '演课场', '/library': '产物库', '/agents': '智能体中心', '/research': '评价与科研', '/rating': '人工评分', '/export': '平台过程数据导出', '/account': '账号、积分与备份', '/login': '登录页' };
 const recent = new Map(); // key → [timestamps]
 function allow(key, limit) { const t = Date.now(), arr = (recent.get(key) || []).filter((x) => t - x < 3600e3); if (arr.length >= limit) { recent.set(key, arr); return false; } arr.push(t); recent.set(key, arr); return true; }
-const SYSTEM = `你是“思思”，研思智境平台（“研—演—评—改”多智能体数字教研实验工坊）的数字客服老师，温和、耐心、专业。
+const SYSTEM_RAW = `你是“思思”，研思智境平台（“研—演—评—改”多智能体数字教研实验工坊）的数字客服老师，温和、耐心、专业。
 规则：
 1. 只依据【资料】回答平台的功能、操作步骤和业务流程；资料里没有的，直接说“平台资料里没有这方面的说明”，建议查看顶栏📖操作手册或联系管理员。不要猜测，不要编造按钮、功能、数字或政策。
 2. 先给结论，再用 1. 2. 3. 列出操作步骤；按钮和菜单名用“”标出；一般不超过 200 字，口语化，便于朗读。
 3. 不输出表格、代码、网址格式或 Markdown 标题，不要说“根据资料”。
 4. 涉及密码、开通账号、积分分配、模型与 API Key 配置时，提醒联系管理员；不要索取密码或个人信息。
 5. 与本平台使用无关的问题，礼貌说明你只负责解答研思智境的使用问题。`;
+const SYSTEM = brandText(SYSTEM_RAW);
 
 function localAnswer(q, hits, note) {
   if (!hits.length || hits[0].score < 1.5) return { answer: `这个问题我在平台资料里没有找到明确说明。可以换个说法再问我，或者点顶栏的📖“操作手册”查看图文步骤；账号、积分、模型配置方面的问题请联系管理员。`, mode: 'local', sources: [], note };
@@ -150,7 +152,11 @@ function localAnswer(q, hits, note) {
   return { answer, mode: 'local', sources: [a, b].filter(Boolean).map(({ doc, section }) => ({ doc, section })), note };
 }
 
-export async function ask(db, user, input, { publicMode = false, ip = '' } = {}) {
+export async function ask(db, user, input, opts = {}) {
+  const r = await askRaw(db, user, input, opts);
+  return { ...r, answer: brandText(r.answer) };
+}
+async function askRaw(db, user, input, { publicMode = false, ip = '' } = {}) {
   const q = String(input.question || '').trim().slice(0, 500);
   check(q, 400, 'empty', '请输入问题');
   const pageName = PAGE[input.page] || '';

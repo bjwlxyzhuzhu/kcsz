@@ -7,6 +7,7 @@
   "engines": { "node": ">=22.13" },
   "scripts": {
     "start": "node server/server.js",
+    "start:szsx": "node --env-file=szsx.env server/server.js",
     "init-admin": "node server/cli.js create-admin",
     "cli": "node server/cli.js",
     "test": "node --test --test-concurrency=1 tests/*.test.js"

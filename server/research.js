@@ -4,6 +4,7 @@ import { one, all, run, id, now, tx, check, fail, audit, json } from './db.js';
 import { RUBRIC_V1, SPECIAL_SCORES, validateRubric, PHASES } from './templates.js';
 import { DISTRIBUTION_VERSION } from './scheduler.js';
 import { zip } from './zip.js';
+import { brandText } from './brand.js';
 
 export const APP_VERSION = '5.1.0';
 export const SCHEMA_VERSION = '5.1';
@@ -221,7 +222,7 @@ export function exportZip(db, user, f) {
 }
 
 function readme(p, empty) {
-  return `# 研思智境研究数据包
+  return brandText(`# 研思智境研究数据包
 
 - 包类型：${p.shared ? '共享包（默认假名化，不含自由文本）' : '完整研究包（教师主动选择）'}
 - 包含正文：产物正文 ${p.inc.artifact_text ? '是' : '否'}；发言正文 ${p.inc.event_text ? '是' : '否'}；评分备注 ${p.inc.rating_notes ? '是' : '否'}。省略处记为「[省略]」。
@@ -245,7 +246,7 @@ function readme(p, empty) {
 ## 空表
 
 ${empty.length ? empty.map((n) => `- ${n}：0 条（本筛选范围内未采集或无记录，未填造示例）`).join('\n') : '- 无'}
-`;
+`);
 }
 
 const DICTIONARY = `# 数据字典（schema ${SCHEMA_VERSION}）
