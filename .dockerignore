@@ -1,0 +1,11 @@
+.git
+.github
+data
+backups
+tests
+legacy
+docs/screenshots
+*.log
+.env
+.env.*
+!.env.example
