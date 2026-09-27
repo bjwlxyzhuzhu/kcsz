@@ -5,6 +5,7 @@ import { esc, $, $$, toast, fail, modal, confirmBox, TYPE_NAME, tour, modeCards,
 import { createController, statusBadge, isIdeo } from './stage.js';
 import { openTaskWizard } from './task.js';
 import { doTransfer } from './home.js';
+import { listLatest, pickArtifact } from './picker.js';
 import { playerHtml, drawPlayer, bindPlayer } from './player.js';
 import { flyPacket, kindOf } from './fx.js';
 import { FILTERS, filterEvents, msgHtml, agentStates, roundtableHtml, coreStatus, coreHtml, progressHtml, outcomeHtml, KIND_LABEL, stageTimeline, stagesHtml, stageLogHtml } from './seminar-view.js';
@@ -40,10 +41,31 @@ export async function renderSeminar(root, { state, refreshMe, navigate, query })
       ${modeSwitch(cat, 'mode-top')}
       <details class="sw-seats"><summary>席位设置 <b id="seat-n"></b></summary><div class="sw-seats-pop"><p class="small faint">勾选参加研讨的教师（至少 3 位）。组长固定主持；席位在新建任务时生效。自定义教师需先在 <a href="/agents" data-link="/agents">智能体中心</a> 设置。</p>
         <div class="sw-seat-list" id="seat-list"></div></div></details>
-      <button id="sw-simple" class="ghost" aria-pressed="false" title="只保留研讨对话、任务进度和播放器，隐藏下方会议室">简洁视图</button>
+      <button id="sw-simple" class="ghost" aria-pressed="false" title="只保留研讨对话、任务进度和播放器，隐藏中间的会议室">简洁视图</button>
       <button id="new-run">新建任务</button></div>
+    <nav class="sw-dock" aria-label="快捷工具">
+      <button type="button" class="on" aria-current="page" data-dock="here">研课场</button>
+      <button type="button" data-dock="import">导入课程内容</button>
+      <button type="button" data-dock="fromclass">导入演课结果 ←</button>
+      <button type="button" data-dock="map">知识点图谱</button>
+      <button type="button" data-dock="lib">思政元素参考</button>
+      <button type="button" data-dock="export">研讨记录导出</button>
+      <button type="button" data-dock="transfer">送入演课场 →</button>
+      <span class="grow"></span>
+      <button type="button" class="participate primary" id="sw-join">参与研课 <span aria-hidden="true">→</span></button>
+    </nav>
+    <section class="room-frame sw-room" aria-label="数字教研室：协同研讨的智能教师">
+      <i class="rf-c tl"></i><i class="rf-c tr"></i><i class="rf-c bl"></i><i class="rf-c br"></i><i class="rf-sweep" aria-hidden="true"></i>
+      <div class="rf-plate"><span class="rf-led" id="rf-led"></span><b>数字教研室</b><span>研讨会议室 · 第 1 研讨桌</span><em id="rf-stage"></em></div>
+      <div class="sw-table" id="scene"></div>
+      <div class="stg-wrap" id="sw-stages"></div>
+    </section>
     <div class="sw-player">${playerHtml()}</div>
     <div class="sw-upper">
+      <aside class="sw-side" aria-label="研讨任务进度">
+        <div class="sw-tabs" role="tablist" id="sw-tabs"></div>
+        <div class="sw-side-body" id="side"></div>
+      </aside>
       <section class="sw-talk" aria-label="多智能体研讨区">
         <header class="sw-th"><div><h2>研讨对话 · 多智能体协同</h2><small>汇聚专业智慧，共研优质课堂</small></div><span class="sw-motto">立德树人</span></header>
         <div class="sw-filter" role="tablist" aria-label="筛选发言" id="sw-filter"></div>
@@ -60,27 +82,7 @@ export async function renderSeminar(root, { state, refreshMe, navigate, query })
             <span class="grow"></span><span class="small faint" id="sw-hint"></span></div>
         </form>
       </section>
-      <aside class="sw-side" aria-label="研讨任务进度">
-        <div class="sw-tabs" role="tablist" id="sw-tabs"></div>
-        <div class="sw-side-body" id="side"></div>
-      </aside>
     </div>
-    <section class="room-frame sw-room" aria-label="数字教研室：协同研讨的智能教师">
-      <i class="rf-c tl"></i><i class="rf-c tr"></i><i class="rf-c bl"></i><i class="rf-c br"></i><i class="rf-sweep" aria-hidden="true"></i>
-      <div class="rf-plate"><span class="rf-led" id="rf-led"></span><b>数字教研室</b><span>研讨会议室 · 第 1 研讨桌</span><em id="rf-stage"></em></div>
-      <div class="sw-table" id="scene"></div>
-      <div class="stg-wrap" id="sw-stages"></div>
-    </section>
-    <nav class="sw-dock" aria-label="快捷工具">
-      <button type="button" class="on" aria-current="page" data-dock="here">研课场</button>
-      <button type="button" data-dock="import">导入课程内容</button>
-      <button type="button" data-dock="map">知识点图谱</button>
-      <button type="button" data-dock="lib">思政元素参考</button>
-      <button type="button" data-dock="export">研讨记录导出</button>
-      <button type="button" data-dock="transfer">送入演课场 →</button>
-      <span class="grow"></span>
-      <button type="button" class="participate primary" id="sw-join">参与研课 <span aria-hidden="true">→</span></button>
-    </nav>
   </div>`;
 
   // ---------- helpers ----------
@@ -261,6 +263,23 @@ export async function renderSeminar(root, { state, refreshMe, navigate, query })
       return;
     }
     if (k === 'lib') return modal({ title: '思政元素参考库', wide: true, body: `<p class="small muted" style="margin-top:0">只提供思考框架与引导问题，不收录政策原文；实际融入点由教研组结合课程内容逐个知识点研讨确定。</p><div class="grid2">${cat.ideology_library.map((g) => `<div class="hx-lib"><b>${esc(g.name)}</b><div class="row" style="gap:4px;margin:6px 0">${g.elements.map((x) => `<span class="badge">${esc(x)}</span>`).join('')}</div><ul>${g.questions.map((q) => `<li>${esc(q)}</li>`).join('')}</ul></div>`).join('')}</div>` });
+    if (k === 'fromclass') {
+      try {
+        const items = await listLatest('classroom', (t) => t === 'classroom_feedback');
+        const r = await pickArtifact({ title: '导入演课结果', items, emptyText: '还没有演课结果：请先在演课场上课、下课并生成课堂反馈',
+          intro: '选择一节已经上过的课的课堂反馈。“导入并开始修订”会以当初上课所用产物的研课场版本为底稿，依据这份反馈修订并生成新版本（原版本保留）；“只导入”则先把反馈带回研课场，稍后再决定。',
+          isCurrent: (a) => current?.type === 'classroom_feedback' && current.lineage_id === a.lineage_id,
+          buttons: [{ label: '只导入', value: 'import' }, { label: '导入并开始修订 →', value: 'revise', cls: 'primary' }] });
+        if (!r) return;
+        if (r.action === 'revise') {
+          if (runActive() || jobActive()) return toast('请先暂停或结束当前研讨，再依据演课结果修订', true);
+          const x = await post('/api/revise-from-feedback', { feedback_artifact_id: r.artifact.artifact_id, exec_mode: modeVal($('#mode-top')) });
+          toast(`开始依据《${r.artifact.title}》修订《${x.base.title}》`); return navigate(`/seminar?run=${x.run_id}&play=1`);
+        }
+        await post('/api/transfers', { from: 'classroom', source_artifact_id: r.artifact.artifact_id, idempotency_key: key('xfer'), save_draft: true });
+        toast(`已导入《${r.artifact.title}》，可随时依据它修订原产物`); return navigate('/seminar');
+      } catch (e) { return fail(e); }
+    }
     if (k === 'transfer') {
       if (!current) return toast('研课场还没有当前产物：请先完成研讨并确认为当前产物', true);
       return doTransfer('seminar', current, () => navigate('/classroom'));
@@ -493,7 +512,7 @@ export async function renderSeminar(root, { state, refreshMe, navigate, query })
   const onKey = (e) => { if (e.target.closest('input,textarea,select')) return; if (e.key === ' ') { e.preventDefault(); const b = !$('#pl-pause').disabled ? $('#pl-pause') : $('#pl-play'); if (!b.disabled) b.click(); } };
   document.addEventListener('keydown', onKey);
 
-  const applySimple = (on) => { document.body.classList.toggle('sw-simple', on); const b = $('#sw-simple'); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '完整视图' : '简洁视图'; b.title = on ? '显示下方的数字教研会议室与研讨进程条' : '只保留研讨对话、任务进度和播放器，隐藏下方会议室'; };
+  const applySimple = (on) => { document.body.classList.toggle('sw-simple', on); const b = $('#sw-simple'); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '完整视图' : '简洁视图'; b.title = on ? '显示中间的数字教研会议室与研讨进程条' : '只保留研讨对话、任务进度和播放器，隐藏中间的会议室'; };
   applySimple(simplePref());
   $('#sw-simple').addEventListener('click', () => { const on = !document.body.classList.contains('sw-simple'); try { localStorage.setItem('yz-sw-simple', on ? '1' : '0'); } catch { /* storage unavailable */ } applySimple(on); if (!on) drawScene?.(); });
   if (pick) await attach(pick); else { drawScene(); drawAll(); }
@@ -502,7 +521,7 @@ export async function renderSeminar(root, { state, refreshMe, navigate, query })
   if (current?.type === 'classroom_feedback' && !runActive() && !jobActive()) {
     const bar = document.createElement('div'); bar.className = 'fb-back';
     bar.innerHTML = `<span>课堂反馈《${esc(current.title)}》已带回研课场。</span><button class="primary" id="fb-revise">依据这份反馈修订原产物 →</button>`;
-    root.querySelector('.sw-player')?.before(bar);
+    root.querySelector('.sw-room')?.before(bar);
     $('#fb-revise').addEventListener('click', async () => {
       try { const r = await post('/api/revise-from-feedback', { exec_mode: modeVal($('#mode-top')) }); toast(`开始依据反馈修订《${r.base.title}》`); navigate(`/seminar?run=${r.run_id}&play=1`); } catch (e) { fail(e); }
     });
@@ -510,8 +529,8 @@ export async function renderSeminar(root, { state, refreshMe, navigate, query })
   drawChips();
   if (job?.status === 'running') startJobPoll();
   tour('seminar', [
-    { sel: '.sw-talk', place: 'right', title: '多智能体研讨区', text: '六位教师智能体按分工发言，并互相回应、质询、核查；课程思政与证据提醒会以标签标出，可用上方筛选。' },
-    { sel: '.sw-side', place: 'left', title: '研讨任务进度', text: '显示真实的“已完成步数/总步数”和当前环节；“研讨成果”页实时呈现教学目标与思政要点。' },
+    { sel: '.sw-talk', place: 'left', title: '多智能体研讨区', text: '六位教师智能体按分工发言，并互相回应、质询、核查；课程思政与证据提醒会以标签标出，可用上方筛选。' },
+    { sel: '.sw-side', place: 'right', title: '研讨任务进度', text: '显示真实的“已完成步数/总步数”和当前环节；“研讨成果”页实时呈现教学目标与思政要点。' },
     { sel: '#scene', place: 'top', title: '数字教研圆桌', text: '谁在发言、谁在思考、谁发现了证据缺口，一目了然；点击教师即可 @ 他/她。' },
     { sel: '#sw-form', place: 'top', title: '你也是教研团队成员', text: '随时输入观点或 @ 某位智能教师，被点名的教师会在下一步回应；输入期间研讨会暂时让出发言权。' },
     { sel: '#new-run', place: 'bottom', title: '新建任务', text: '导入讲义、大纲、课件等课程内容，选择要生成的成果和课时，系统自动执行；可随时暂停与继续。' },

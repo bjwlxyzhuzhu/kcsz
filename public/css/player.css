@@ -36,52 +36,13 @@
 @media (max-width: 720px) { .pl-btn span { display: none; } .pl-btn { padding: 0 10px; } .pl-main { min-width: 0; } .pl-main span { display: inline; } }
 @media (prefers-reduced-motion: reduce) { .pl-buf { transition: none; } }
 
-/* ===== 3D 粉红模块（整条播放器）+ 加高美化的进度槽 ===== */
-.pl {
-  --pk-1: #fff3f6; --pk-2: #ffdbe5; --pk-3: #f9bccd; --pk-edge: #eea2b8; --pk-base: #dc8aa2; --pk-ink: #5a2433; --pk-ink-2: #8a5566;
-  position: relative; gap: 16px; padding: 10px 16px 12px; border-radius: 18px; border: 1px solid var(--pk-edge);
-  background: linear-gradient(180deg, var(--pk-1) 0%, var(--pk-2) 46%, var(--pk-3) 100%);
-  box-shadow: inset 0 1.5px 0 #ffffffe6, inset 0 -3px 0 #e99cb366, 0 4px 0 var(--pk-base), 0 12px 26px #c2185b2e;
-  margin-bottom: 4px;
-}
-.pl::before { content: ""; position: absolute; left: 12px; right: 12px; top: 3px; height: 42%; border-radius: 14px 14px 40% 40% / 14px 14px 12px 12px; background: linear-gradient(180deg, #ffffffb8, #ffffff00); pointer-events: none; }
-.pl > * { position: relative; }
-:root:not([data-theme="light"]) .pl { --pk-1: #6b2a3e; --pk-2: #55203a; --pk-3: #441830; --pk-edge: #8e3f58; --pk-base: #2a0d1a; --pk-ink: #ffe6ee; --pk-ink-2: #e6b3c3; }
-:root:not([data-theme="light"]) .pl::before { background: linear-gradient(180deg, #ffffff26, #ffffff00); }
-/* 键帽式按钮：白色珠光 + 底部厚度，按下时下沉 */
-.pl-btn { height: 38px; border-radius: 12px; border: 1px solid #f1b2c3; color: var(--pk-ink); background: linear-gradient(180deg, #ffffff, #ffeef3); box-shadow: inset 0 1px 0 #fff, 0 3px 0 #e7a3b6, 0 5px 10px #c2185b1f; transition: transform .12s, box-shadow .12s; }
-.pl-btn:hover:not(:disabled) { background: linear-gradient(180deg, #ffffff, #ffe4ec); border-color: #ea8ea8; transform: translateY(-1px); box-shadow: inset 0 1px 0 #fff, 0 4px 0 #e7a3b6, 0 8px 14px #c2185b29; }
-.pl-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: inset 0 1px 0 #fff, 0 0 0 #e7a3b6, 0 2px 4px #c2185b1f; }
-.pl-btn:disabled { opacity: .45; box-shadow: inset 0 1px 0 #fff, 0 2px 0 #e7a3b688; }
-.pl-main { color: #fff; border-color: #b0213c; background: linear-gradient(180deg, #e0485f 0%, #c62a3d 45%, #9c1830 100%); box-shadow: inset 0 1px 0 #ff9aa9, 0 3px 0 #6d0f1f, 0 6px 14px #a6192e4d; }
-.pl-main:hover:not(:disabled) { background: linear-gradient(180deg, #ea5a70, #d0334a 45%, #a61b33); box-shadow: inset 0 1px 0 #ffa8b5, 0 4px 0 #6d0f1f, 0 9px 18px #a6192e59; }
-.pl-main:active:not(:disabled) { box-shadow: inset 0 1px 0 #ff9aa9, 0 0 0 #6d0f1f, 0 2px 5px #a6192e4d; }
-.pl-stop:not(:disabled) { color: #b0213c; }
-:root:not([data-theme="light"]) .pl-btn:not(.pl-main) { color: #ffe6ee; border-color: #8e3f58; background: linear-gradient(180deg, #7a3149, #5a2238); box-shadow: inset 0 1px 0 #a8566f, 0 3px 0 #2a0d1a, 0 5px 10px #0006; }
-:root:not([data-theme="light"]) .pl-stop:not(:disabled) { color: #ff9fb2; }
-/* 加高的进度槽：内凹轨道 + 条纹缓冲 + 高光填充 + 立体旋钮 */
-.pl-track { height: 30px; }
-.pl-rail { top: 8px; height: 14px; border-radius: 14px; background: linear-gradient(180deg, #e9a9bb 0%, #f7d0db 55%, #fde8ee 100%); box-shadow: inset 0 2px 4px #b8546f73, inset 0 -1px 0 #ffffffb3, 0 1px 0 #ffffffcc; }
-.pl-buf { border-radius: 14px; background: repeating-linear-gradient(-45deg, #ffffff8c 0 6px, #ffffff40 6px 12px); }
-.pl-fill { border-radius: 14px; background: linear-gradient(180deg, #ff8aa3 0%, #e0405f 45%, #b81d41 100%); box-shadow: inset 0 1px 0 #ffc2cf, 0 0 10px #e0405f59; }
-.pl-fill::after { content: ""; position: absolute; left: 4px; right: 4px; top: 2px; height: 4px; border-radius: 4px; background: linear-gradient(180deg, #ffffffb3, #ffffff00); }
-.pl.reviewing .pl-fill { background: linear-gradient(180deg, #7fb6ff 0%, #3d7eff 45%, #245ea8 100%); box-shadow: inset 0 1px 0 #cfe3ff, 0 0 10px #3d7eff59; }
-.pl-marks i { top: 8px; height: 14px; width: 2px; background: #ffffffd9; opacity: .9; box-shadow: 0 0 0 .5px #c2185b33; }
-.pl-marks i.mn { top: 11px; height: 8px; width: 1px; opacity: .6; }
-.pl-knob { top: 3px; width: 24px; height: 24px; border: 2px solid #fff; background: radial-gradient(circle at 35% 30%, #ffffff 0%, #ffd6df 38%, #e0567a 80%, #b81d41 100%); box-shadow: 0 3px 0 #9c1830, 0 5px 10px #7a0f2659; }
-.pl.reviewing .pl-knob { background: radial-gradient(circle at 35% 30%, #ffffff 0%, #d3e5ff 38%, #4d8dff 80%, #245ea8 100%); box-shadow: 0 3px 0 #1c4a86, 0 5px 10px #1c4a8659; border-color: #fff; }
-.pl-track:not(.off):hover .pl-knob { transform: translateX(-50%) scale(1.12); }
-.pl-hover { bottom: calc(100% + 4px); background: #7a1f36; border-radius: 6px; padding: 2px 8px; box-shadow: 0 3px 8px #7a1f3666; }
-:root:not([data-theme="light"]) .pl-rail { background: linear-gradient(180deg, #2a0d1a, #3a1426); box-shadow: inset 0 2px 4px #000a, 0 1px 0 #ffffff1f; }
-.pl-info { color: var(--pk-ink-2); }
-.pl-time { color: var(--pk-ink); font-size: max(12.5px, calc(13px * var(--fs))); }
-.pl-state.on { color: #b0213c; }
-:root:not([data-theme="light"]) .pl-state.on { color: #ff9fb2; }
-.pl-speed { border-color: #f1b2c3; background: linear-gradient(180deg, #ffffffcc, #ffe4ecb3); box-shadow: inset 0 1px 0 #fff, 0 2px 0 #e7a3b6; }
-.pl-speed button { color: var(--pk-ink-2); }
-.pl-speed button.on { background: linear-gradient(180deg, #e0485f, #9c1830); color: #fff; box-shadow: 0 2px 0 #6d0f1f; }
-:root:not([data-theme="light"]) .pl-speed { border-color: #8e3f58; background: linear-gradient(180deg, #5a2238, #441830); box-shadow: 0 2px 0 #2a0d1a; }
-@media (prefers-reduced-motion: reduce) { .pl-btn { transition: none; } }
+/* 中性面板 + 细进度条：已播放用品牌红，回看时转蓝；按钮为浅色键帽，主按钮为红色 */
+.pl { border-radius: 14px; }
+.pl-btn { box-shadow: inset 0 1px 0 #ffffff26, 0 1px 2px #0000001f; }
+:root[data-theme="light"] .pl-btn:not(.pl-main) { background: linear-gradient(180deg, #ffffff, #f6f2ee); box-shadow: inset 0 1px 0 #fff, 0 1px 2px #4a2a2a1f; }
+.pl-fill { background: #A6192E; }
+.pl.reviewing .pl-fill { background: #245EA8; }
+.pl-speed button.on { background: #A6192E; }
 .pl-track, .pl-track * { user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
 /* 旋钮在 0% / 100% 时不压住按钮与倍速：进度槽两端留出旋钮半径 */
 .pl-mid { padding: 0 12px; }

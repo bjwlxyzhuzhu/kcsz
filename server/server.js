@@ -90,7 +90,8 @@ export function createApp({ dataDir = process.env.YANZHI_DATA_DIR || join(ROOT, 
     const active = (m) => one(db, "SELECT run_id, status FROM runs WHERE owner_id=? AND module=? AND status IN ('running','awaiting_human','paused','ready') ORDER BY created_at DESC LIMIT 1", user.user_id, m) || null;
     return { current: { seminar: cur('seminar'), classroom: cur('classroom') }, active: { seminar: active('seminar'), classroom: active('classroom') } };
   });
-  route('GET', '/api/artifacts', 'teacher', ({ user, query }) => ({ artifacts: all(db, `SELECT * FROM artifacts WHERE owner_id=? ${query.module ? 'AND module=?' : ''} ORDER BY created_at DESC LIMIT 2000`, ...[user.user_id, query.module].filter(Boolean)).map((r) => { const c = json(r.body)?.course || {}; return { ...art.rowToArtifact(r, false), course_name: String(c.name || '').slice(0, 60), unit: String(c.unit || '').slice(0, 60) }; }) }));
+  route('GET', '/api/artifacts', 'teacher', ({ user, query }) => ({ artifacts: all(db, `SELECT * FROM artifacts WHERE owner_id=? ${query.module ? 'AND module=?' : ''} ORDER BY created_at DESC LIMIT 2000`, ...[user.user_id, query.module].filter(Boolean)).map((r) => { const c = json(r.body)?.course || {}; const taught = r.type === 'classroom_feedback' && r.source_run_id ? one(db, "SELECT a.title, a.version, a.type, r.started_at, r.ended_at FROM runs r LEFT JOIN artifacts a ON a.artifact_id=r.input_artifact_id WHERE r.run_id=? AND r.owner_id=?", r.source_run_id, user.user_id) : null;
+    return { ...art.rowToArtifact(r, false), course_name: String(c.name || '').slice(0, 60), unit: String(c.unit || '').slice(0, 60), ...(taught ? { taught: { title: taught.title, version: taught.version, type: taught.type, started_at: taught.started_at, ended_at: taught.ended_at } } : {}) }; }) }));
   route('POST', '/api/artifacts', 'teacher', ({ user, body }) => {
     const t = tpl.getTemplate(db, 'artifact', body.type); check(t && !t.body.system_only, 400, 'bad_type', '请选择产物类型');
     return art.createArtifact(db, user, { module: body.module, type: body.type, title: body.title, framework_key: body.framework_key, with_pdca: body.with_pdca, course: body.course, framework_fields: body.framework_fields });
@@ -142,7 +143,7 @@ export function createApp({ dataDir = process.env.YANZHI_DATA_DIR || join(ROOT, 
   route('POST', '/api/revise-from-feedback', 'teacher', ({ user, body }) => {
     let fb = body.feedback_artifact_id ? art.rowToArtifact(art.getOwned(db, user, body.feedback_artifact_id)) : art.getCurrent(db, user, 'seminar');
     check(fb && fb.type === 'classroom_feedback', 409, 'no_feedback', '没有可用的课堂反馈：请先在演课场下课并生成课堂反馈');
-    if (fb.module === 'classroom') { art.setCurrent(db, user, 'classroom', fb.artifact_id); fb = art.transfer(db, user, { from: 'classroom', idempotency_key: `rev-${fb.artifact_id}`.slice(0, 80), save_draft: true }).target; }
+    if (fb.module === 'classroom') fb = art.transfer(db, user, { from: 'classroom', source_artifact_id: fb.artifact_id, idempotency_key: `rev-${fb.artifact_id}`.slice(0, 80), save_draft: true }).target;
     const cr = one(db, "SELECT input_artifact_id FROM runs WHERE run_id=? AND owner_id=? AND module='classroom'", fb.source_run_id, user.user_id);
     check(cr?.input_artifact_id, 409, 'no_source', '找不到这份反馈对应的课堂与产物');
     const used = one(db, 'SELECT lineage_id, type FROM artifacts WHERE artifact_id=?', cr.input_artifact_id);

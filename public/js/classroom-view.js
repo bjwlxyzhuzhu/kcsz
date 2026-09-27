@@ -81,7 +81,7 @@ export function liveHtml({ events, names, profiles, terms, streaming, showAll })
   const shown = new Set([lastStu?.event_id, lastT?.event_id]);
   const rest = (showAll ? events : events.filter((e) => !shown.has(e.event_id) && e.kind !== 'silence').slice(-4)).slice().reverse();
   const list = rest.map((e) => `<li class="cl-ev${showAll ? '' : ' fresh'}"><span class="cl-evw">${esc(whoOf(e, names, prof))}</span>${tagHtml(eventTags(e))}<span class="cl-evt">${hl(showAll ? e.text : clip(e.text, 90), terms)}</span></li>`).join('');
-  return `${speaker || (!streaming && !lastStu && !lastT ? '<div class="cl-empty">尚未开始上课。点击右上角“开始上课”，任课教师将按教案推进，40 位学生智能体在 8 个小组中自主参与。</div>' : '')}${guide}
+  return `${speaker || (!streaming && !lastStu && !lastT ? '<div class="cl-empty">尚未开始上课。点击教室下方播放器中的“开始上课”，任课教师将按教案推进，40 位学生智能体在 8 个小组中自主参与。</div>' : '')}${guide}
     ${rest.length ? `<ol class="cl-evs${showAll ? ' all' : ''}" id="feed">${list}</ol>` : '<ol class="cl-evs" id="feed"></ol>'}`;
 }
 

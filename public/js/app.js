@@ -32,6 +32,13 @@ window.addEventListener('yz:unauth', () => { if (location.pathname !== '/login')
 window.addEventListener('yz:mustchange', () => { if (location.pathname !== '/account') { toast('首次登录请先修改密码', true); navigate('/account'); } });
 
 // ---------- router ----------
+// 页眉实际高度写入 --hdr-h：首页、研课场、演课场的“一屏”版式据此计算可用高度（页眉随字号、窗口宽度变化）
+{
+  const hdr = document.getElementById('header');
+  const fit = () => document.documentElement.style.setProperty('--hdr-h', `${hdr.getBoundingClientRect().height || 64}px`);
+  if ('ResizeObserver' in window) new ResizeObserver(fit).observe(hdr);
+  fit();
+}
 const routes = { '/login': pageLogin, '/': () => renderHome(root, { navigate, getCatalog: catalog }), '/seminar': (q) => stage(renderSeminar, q), '/classroom': (q) => stage(renderClassroom, q), '/library': pageLibrary, '/rating': pageRating, '/export': pageExport, '/account': pageAccount, '/agents': (q) => stage((r, ctx) => renderAgents(r, { ...ctx, invalidate: invalidateCatalog }), q), '/research': (q) => renderResearch(root, { navigate, query: q }) };
 export function navigate(path, replace = false) { if (replace) history.replaceState(null, '', path); else history.pushState(null, '', path); route(); }
 async function route() {

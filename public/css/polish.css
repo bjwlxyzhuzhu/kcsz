@@ -1,0 +1,59 @@
+/* 统一质感（最后加载）：模块 = 细边框 + 顶部高光（水晶感）+ 柔和投影；导航悬停 = 凸起的红底白字按钮。 */
+:root {
+  --mod-shadow: inset 0 1px 0 #ffffff14, 0 1px 2px #00000059, 0 10px 26px #00000040;
+  --mod-shadow-hover: inset 0 1px 0 #ffffff1f, 0 2px 4px #00000059, 0 18px 38px #00000059;
+}
+:root[data-theme="light"] {
+  --mod-shadow: inset 0 1px 0 #ffffffe6, 0 1px 2px #4a2a2a14, 0 8px 22px #4a2a2a14;
+  --mod-shadow-hover: inset 0 1px 0 #ffffff, 0 2px 4px #4a2a2a1a, 0 16px 34px #4a2a2a24;
+}
+.panel, .card, .sw-talk, .sw-side, .cl-live-panel, .cl-data, .cl-stage, .sw-dock, .wiz-sec, .pl { box-shadow: var(--mod-shadow); }
+
+/* 导航：悬停时凸起成红底白字按钮，按下回落 */
+.app-header .nav a { border-radius: 10px; border: 1px solid transparent; transition: transform .15s ease, background .15s ease, box-shadow .15s ease, color .15s ease; }
+.app-header .nav a:hover, .app-header .nav a:focus-visible { color: #fff; background: linear-gradient(180deg, #ee5068, #b8182f); border-color: #ffffffb3; outline: none;
+  box-shadow: inset 0 1px 0 #ffffff66, 0 3px 0 #5c0b18, 0 8px 16px #00000059; transform: translateY(-2px); }
+.app-header .nav a:active { transform: translateY(1px); box-shadow: inset 0 1px 0 #ffffff40, 0 0 0 #5c0b18, 0 2px 4px #0000004d; }
+.app-header .nav a:hover::after, .app-header .nav a:focus-visible::after { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .app-header .nav a { transition: none; } .app-header .nav a:hover { transform: none; } }
+
+/* 品牌名不逐字折行（窄屏时让导航与工具区先收缩） */
+.brand b { white-space: nowrap; }
+@media (max-width: 1200px) { .app-header { flex-wrap: wrap; row-gap: 6px; } .nav { order: 3; width: 100%; overflow-x: auto; overflow-y: visible; padding: 2px 0 4px; } }
+
+/* 会议室 / 教室外框：去掉金色角标、流光和渐变描边，统一为细边框 + 高光 + 投影 */
+.room-frame { border: 1px solid var(--sw-line, var(--line)); background: linear-gradient(180deg, var(--rf-bg1), var(--rf-bg2)); box-shadow: var(--mod-shadow); }
+:root:not([data-theme="light"]) .room-frame { background: linear-gradient(180deg, var(--rf-bg1), var(--rf-bg2)); }
+.rf-c, .rf-sweep { display: none; }
+/* 英文副标题过长时截断，不压到导航上 */
+.brand small { max-width: 340px; overflow: hidden; text-overflow: ellipsis; }
+
+/* 研课场 / 演课场主要模块：外缘红色描边（动画会议室、教室与下方两块面板） */
+:root { --mod-edge: #c8344a; }
+:root[data-theme="light"] { --mod-edge: #b8233a; }
+.sw-room.room-frame, .cl-room.room-frame, .sw-talk, .sw-side, .cl-live-panel, .cl-data { border: 1.5px solid var(--mod-edge); }
+/* 一屏版式下，下方面板标题只保留主标题，把高度留给对话与数据 */
+@media (min-width: 1100px) and (min-height: 1000px) {
+  .sw-th small, .cl-ph small { display: none; } .sw-th { padding-bottom: 4px; }
+  /* “最近：”一行只在视觉上隐藏，读屏软件仍会播报 */
+  .sw-live { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+
+/* 会议室 / 教室背景底图：实拍空会议室与阶梯教室，叠一层半透明底色保证卡片与文字清楚（Unsplash License：Benjamin Child、Changbok Ko） */
+.sw-room.room-frame { background: linear-gradient(180deg, rgba(255, 250, 246, .74), rgba(250, 238, 230, .84)), url(/img/room-seminar.webp) center 45% / cover no-repeat; }
+.cl-room.room-frame { background: linear-gradient(180deg, rgba(255, 250, 246, .76), rgba(250, 238, 230, .86)), url(/img/room-classroom.webp) center 55% / cover no-repeat; }
+:root:not([data-theme="light"]) .sw-room.room-frame { background: linear-gradient(180deg, rgba(30, 17, 24, .78), rgba(18, 10, 16, .88)), url(/img/room-seminar.webp) center 45% / cover no-repeat; }
+:root:not([data-theme="light"]) .cl-room.room-frame { background: linear-gradient(180deg, rgba(30, 17, 24, .80), rgba(18, 10, 16, .88)), url(/img/room-classroom.webp) center 55% / cover no-repeat; }
+.cl-room .cl-rail { backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+
+/* 产物选择框（导入演课结果 / 选择上课内容） */
+.pick-list { display: grid; gap: 6px; max-height: 52vh; overflow: auto; padding-right: 2px; }
+.pick-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; transition: border-color .15s, background .15s; }
+.pick-item:hover { border-color: var(--mod-edge); }
+.pick-item:has(input:checked) { border-color: var(--mod-edge); background: color-mix(in srgb, var(--mod-edge) 8%, transparent); }
+.pick-item input { flex: none; width: auto; margin: 0; accent-color: #a6192e; }
+.pick-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.pick-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-main small, .pick-side small { color: var(--muted); font-size: calc(12.5px * var(--fs)); }
+.pick-side { flex: none; display: grid; justify-items: end; gap: 2px; }
+.pick-side em { font-style: normal; font-size: 12px; padding: 1px 8px; border-radius: 999px; color: #fff; background: #a6192e; }

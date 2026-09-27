@@ -1,6 +1,7 @@
 // 演课场：40 人 · 可配置分组（默认 8 组 × 5 人）· 组级概览 + 个体聚焦 · 教师可干预。
 // 上部「课堂实况 + 课堂实时数据」，下部「任课教师 + 学习小组」，所有状态来自真实运行数据（见 classroom-view.js）。
-import { get, post } from './api.js';
+import { get, post, key } from './api.js';
+import { listLatest, pickArtifact } from './picker.js';
 import { esc, $, $$, toast, fail, modal, confirmBox, fmtMs, TYPE_NAME, hl, tour, execPref, modeCards, modeVal, bindModeCards, modeSwitch } from './ui.js';
 import { createController, mountComposer, statusBadge } from './stage.js';
 import { playerHtml, drawPlayer, bindPlayer } from './player.js';
@@ -36,18 +37,16 @@ export async function renderClassroom(root, { state, refreshMe, navigate, query 
       ${modeSwitch(cat, 'mode-top')}
       <label class="cl-gsel" title="下一次开课使用的班级规模与分组">班级 <b>40人</b><select id="cl-groups" aria-label="分组方式">${GROUP_PRESETS.map(([c, g]) => `<option value="${c}:${g}">${groupLabel({ class_size: c, group_size: g })}</option>`).join('')}<option value="custom">自定义…</option></select></label>
       <button id="new-run" class="ghost-2">新建课堂</button><button id="fb" class="ghost-2">生成课堂反馈</button></div>
-    <div class="cl-player">${playerHtml({ speeds: [1, 2, 5, 10, 20, 60] })}</div>
-    <div class="cl-upper">
-      <section class="cl-live-panel" aria-label="课堂实况">
-        <header class="cl-ph"><div><h2>课堂实况 · 实时互动</h2><small>学生智能体依据教案与课堂进程自主参与；教师按教学设计推进</small></div><span class="cl-dot" id="live-dot"></span></header>
-        <div class="cl-live" id="cl-live" aria-live="polite"></div>
-        <div class="cl-live-foot"><button type="button" class="small ghost" id="cl-all">查看完整记录</button><details class="cl-prompt"><summary>讲解内容（跟学）</summary><div class="prompter" id="prompter" aria-label="教师讲解内容（跟学）"></div></details></div>
-      </section>
-      <aside class="cl-data" aria-label="课堂实时数据">
-        <header class="cl-ph"><h2>课堂实时数据</h2><button type="button" class="small ghost" id="cl-ideo-btn">思政要点 <b id="cl-ideo-n">0</b></button></header>
-        <div id="side" class="cl-data-body"></div>
-      </aside>
-    </div>
+    <nav class="sw-dock cl-dock" aria-label="快捷工具">
+      <button type="button" class="on" aria-current="page" data-dock="here">演课场</button>
+      <button type="button" data-dock="pick">选择上课内容</button>
+      <button type="button" data-dock="profile">班级学情画像</button>
+      <button type="button" data-dock="prompt">讲解内容（跟学）</button>
+      <button type="button" data-dock="ideo">思政要点</button>
+      <button type="button" data-dock="export">课堂记录导出</button>
+      <button type="button" data-dock="back">生成反馈，返回研课场 ←</button>
+      <span class="grow"></span>
+    </nav>
     <section class="cl-stage cl-room room-frame" aria-label="课堂试验场：任课教师与学习小组">
       <i class="rf-c tl"></i><i class="rf-c tr"></i><i class="rf-c bl"></i><i class="rf-c br"></i><i class="rf-sweep" aria-hidden="true"></i>
       <div class="rf-plate"><span class="rf-led" id="rf-led"></span><b>课堂试验场</b><span>智慧教室 · 多智能体课堂预演</span><em id="rf-stage"></em></div>
@@ -66,14 +65,26 @@ export async function renderClassroom(root, { state, refreshMe, navigate, query 
         <div class="cl-body" id="scene"></div>
         <div class="stg-wrap cl-stg" id="cl-stages"></div>
       </div>
-    </section></div>`;
+    </section>
+    <div class="cl-player">${playerHtml({ speeds: [1, 2, 5, 10, 20, 60] })}</div>
+    <div class="cl-upper">
+      <aside class="cl-data" aria-label="课堂实时数据">
+        <header class="cl-ph"><h2>课堂实时数据</h2><button type="button" class="small ghost" id="cl-ideo-btn">思政要点 <b id="cl-ideo-n">0</b></button></header>
+        <div id="side" class="cl-data-body"></div>
+      </aside>
+      <section class="cl-live-panel" aria-label="课堂实况">
+        <header class="cl-ph"><div><h2>课堂实况 · 实时互动</h2><small>学生智能体依据教案与课堂进程自主参与；教师按教学设计推进</small></div><span class="cl-dot" id="live-dot"></span></header>
+        <div class="cl-live" id="cl-live" aria-live="polite"></div>
+        <div class="cl-live-foot"><button type="button" class="small ghost" id="cl-all">查看完整记录</button><details class="cl-prompt"><summary>讲解内容（跟学）</summary><div class="prompter" id="prompter" aria-label="教师讲解内容（跟学）"></div></details></div>
+      </section>
+    </div></div>`;
 
   const composer = mountComposer({ label: '参与课堂', roles: [['teacher', '以教师身份'], ['student', '以学生身份']], kinds: [['question', '提问'], ['challenge', '质疑'], ['response', '回应'], ['supplement', '补充'], ['lecture', '讲授']],
     targets: () => { const recent = [...new Set((ctrl?.events || []).slice(-12).reverse().map((e) => e.actor_id).filter((a) => /^S\d|^T$/.test(a)))]; return recent.map((a) => [a, names[a] || a]); },
     onOpen: async () => { if (!ctrl) return; wasPlaying = ctrl.playing; ctrl.playing = false; try { ctrl.run = await post(`/api/runs/${run.run_id}/composer`, { open: true }); drawTop(); } catch { /* not running */ } },
     onClose: async () => { if (!ctrl) return; try { ctrl.run = await post(`/api/runs/${run.run_id}/composer`, { open: false }); drawTop(); } catch { /* ignore */ } if (wasPlaying) { wasPlaying = false; ctrl.play(); } },
     onSubmit: async (b) => { if (!ctrl) throw new Error('请先新建并开始课堂'); const e = await post(`/api/runs/${run.run_id}/human`, b); ctrl.add(e, true); toast(b.human_role === 'student' ? '已发言，教师将优先回应' : '已发言，学生将自主回应'); } });
-  $('#cl-tools').append(composer.btn);
+  $('.cl-dock').append(composer.btn); composer.btn.insertAdjacentHTML('beforeend', ' <span aria-hidden="true">→</span>'); // “参与课堂”放在快捷工具条右端，与研课场“参与研课”位置一致
   composer.setEnabled(false);
 
   // ---------- derived state ----------
@@ -124,7 +135,7 @@ export async function renderClassroom(root, { state, refreshMe, navigate, query 
     $$('#side [data-group]').forEach((b) => b.addEventListener('click', () => openGroup(b.dataset.group)));
   };
 
-  // ---------- 下部：教师 + 小组 ----------
+  // ---------- 中部：教师 + 小组 ----------
   const drawScene = () => {
     const { stu, groups } = derive();
     const lastT = [...events()].reverse().find((e) => e.actor_id === 'T');
@@ -206,6 +217,28 @@ export async function renderClassroom(root, { state, refreshMe, navigate, query 
   // ---------- 视图切换 ----------
   $$('.cl-rail [data-view]').forEach((b) => b.addEventListener('click', () => { viewMode = b.dataset.view; $$('.cl-rail [data-view]').forEach((x) => x.classList.toggle('on', x === b)); drawScene(); }));
   $('#cl-ideo-btn').addEventListener('click', () => { viewMode = 'ideo'; $$('.cl-rail [data-view]').forEach((x) => x.classList.toggle('on', x.dataset.view === 'ideo')); drawScene(); $('#scene').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
+  // 快捷工具条（与研课场统一）
+  $$('.cl-dock [data-dock]').forEach((b) => b.addEventListener('click', async () => {
+    const k = b.dataset.dock;
+    if (k === 'pick') {
+      if (ctrl?.run && ['running', 'awaiting_human'].includes(ctrl.run.status)) return toast('请先暂停或下课，再更换上课内容', true);
+      try {
+        const items = await listLatest('seminar', (t) => !NOT_RUNNABLE.has(t));
+        const r = await pickArtifact({ title: '选择上课内容', items, emptyText: '研课场还没有可以上课的成果：请先在研课场完成研讨',
+          intro: '从研课场的成果中选择这节课要演的内容（单课教案、课件、练习、试卷或含当前单元的课程设计等）。导入后点“开始上课”即按所选内容开课；研课场的当前产物不受影响。草稿会先保存为正式版本。',
+          isCurrent: (a) => current?.lineage_id === a.lineage_id,
+          buttons: [{ label: '导入并准备上课 →', value: 'use', cls: 'primary' }] });
+        if (!r) return;
+        await post('/api/transfers', { from: 'seminar', source_artifact_id: r.artifact.artifact_id, idempotency_key: key('xfer'), save_draft: true });
+        toast(`已导入《${r.artifact.title}》v${r.artifact.version}，点“开始上课”开课`); return navigate('/classroom');
+      } catch (e) { return fail(e); }
+    }
+    if (k === 'profile') return navigate('/agents?tab=students');
+    if (k === 'prompt') { const d = $('.cl-prompt'); d.open = true; d.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
+    if (k === 'ideo') return $('#cl-ideo-btn').click();
+    if (k === 'export') return navigate('/export');
+    if (k === 'back') { if ($('#fb').disabled) return toast('下课（或暂停）后才能生成课堂反馈并带回研课场', true); return $('#fb').click(); }
+  }));
   $('#cl-all').addEventListener('click', () => { showAll = !showAll; drawLive(); });
 
   // ---- class clock (simulated class time) ----
@@ -454,10 +487,11 @@ export async function renderClassroom(root, { state, refreshMe, navigate, query 
   tour('classroom', [
     { sel: '#pl-play', place: 'bottom', title: '开始上课', text: '从研课场导入教案后，直接点这里就能开课（默认 40 人 · 8 组 × 5 人）。' },
     { sel: '#pl-track', place: 'bottom', title: '播放器条', text: '暂停、下课、回退、快进；拖动进度条到已上过的部分可以回看，拖到后面会快进到那里。回看不改变课堂。' },
-    { sel: '.cl-live-panel', place: 'right', title: '课堂实况', text: '只显示当前最重要的课堂事件：正在发言的学生、教师引导和最近几条互动；“查看完整记录”可展开全部。' },
-    { sel: '.cl-data', place: 'left', title: '课堂实时数据', text: '6 项核心指标和小组活跃度都由本节课的模拟事件实时计算。' },
+    { sel: '.cl-live-panel', place: 'left', title: '课堂实况', text: '只显示当前最重要的课堂事件：正在发言的学生、教师引导和最近几条互动；“查看完整记录”可展开全部。' },
+    { sel: '.cl-data', place: 'right', title: '课堂实时数据', text: '6 项核心指标和小组活跃度都由本节课的模拟事件实时计算。' },
     { sel: '#scene', place: 'top', title: '8 个学习小组', text: '每组只显示一位代表和其余成员的状态点；点击小组查看 5 名成员的状态、发言次数和最近观点，也可以点名。' },
     { sel: '#cl-tools', place: 'bottom', title: '教师调控', text: '随机点名、指定小组发言、发起全班讨论：被点名的学生或小组代表会在下一步回应。' },
+    { sel: '.cl-dock', place: 'bottom', title: '快捷工具', text: '班级学情画像、跟学讲解、思政要点、课堂记录导出；下课后可一键生成反馈并带回研课场。右端“参与课堂”可以教师或学生身份插话。' },
   ]);
   return () => { ctrl?.dispose(); composer.remove(); clearInterval(timer); clearInterval(jobTimer); window.removeEventListener('resize', onResize); document.removeEventListener('keydown', onKey); document.body.classList.remove('is-cl'); };
 }

@@ -176,3 +176,34 @@ test('局部重生成：只改指定段落，显示预算，保存版本生成�
   assert.equal(content.rows.length, 0, '其他段落未被重跑');
   await mock.close();
 });
+
+test('指定产物流转：演课场可选择上哪份研课成果，研课场可选择导入哪节课的反馈；不改变来源模块的当前产物', async () => {
+  // 研课场两份成果：真实教案 L（非当前）与课件 A（当前）
+  const { seminarArtifact: L } = await lessonToClassroom(t, 'pick-lesson-0001');
+  const a = await t.post('/api/artifacts', { module: 'seminar', type: 'courseware', title: '选课-A' }); await t.post(`/api/artifacts/${a.data.artifact_id}/save`, {});
+  await t.post(`/api/artifacts/${a.data.artifact_id}/current`);
+  const pick = await t.post('/api/transfers', { from: 'seminar', source_artifact_id: L.artifact_id, idempotency_key: 'pick-seminar-L-01', save_draft: true });
+  assert.equal(pick.status, 200); assert.equal(pick.data.target.module, 'classroom'); assert.equal(pick.data.target.title, L.title);
+  const home = (await t.get('/api/home')).data;
+  assert.equal(home.current.classroom.artifact_id, pick.data.target.artifact_id, '演课场当前产物是所选的教案');
+  assert.equal(home.current.seminar.artifact_id, a.data.artifact_id, '研课场当前产物仍是 A');
+  // 来源模块不符时拒绝
+  const wrong = await t.post('/api/transfers', { from: 'classroom', source_artifact_id: a.data.artifact_id, idempotency_key: 'pick-wrong-mod-01', save_draft: true });
+  assert.equal(wrong.status, 400); assert.equal(wrong.data.error.code, 'wrong_module');
+  // 他人的产物不可导入
+  const t2 = client(app.base); await t2.login('teacher_b', 'Teach12345');
+  const foreign = await t2.post('/api/transfers', { from: 'seminar', source_artifact_id: L.artifact_id, idempotency_key: 'pick-foreign-001', save_draft: true });
+  assert.equal(foreign.status, 404);
+  // 上完这节课的反馈：研课场选择导入，演课场的当前产物不被改动
+  const c = await t.post('/api/runs', { module: 'classroom', exec_mode: 'demo', config: { max_turns: 8, seed: 'pick' } });
+  await t.post(`/api/runs/${c.data.run_id}/start`);
+  for (let i = 0; i < 10; i++) await t.post(`/api/runs/${c.data.run_id}/step`);
+  await t.post(`/api/runs/${c.data.run_id}/finish`);
+  const fb = (await t.post(`/api/runs/${c.data.run_id}/feedback`)).data;
+  const clCur = (await t.get('/api/home')).data.current.classroom.artifact_id;
+  const item = (await t.get('/api/artifacts?module=classroom')).data.artifacts.find((x) => x.artifact_id === fb.artifact_id);
+  assert.equal(item.taught?.title, L.title, '反馈列表注明当时上的是哪份内容');
+  const back = await t.post('/api/transfers', { from: 'classroom', source_artifact_id: fb.artifact_id, idempotency_key: 'pick-feedback-01', save_draft: true });
+  assert.equal(back.status, 200); assert.equal(back.data.target.type, 'classroom_feedback'); assert.equal(back.data.target.module, 'seminar');
+  assert.equal((await t.get('/api/home')).data.current.classroom.artifact_id, clCur, '演课场当前产物不变');
+});

@@ -184,7 +184,7 @@
 @media (prefers-reduced-motion: reduce) { .rf-sweep::before, .rf-led.on, .ag3.st-speaking .ag3-halo, .ag3.st-speaking .sw-ring, .ag3.st-speaking .sw-ava, .stg-running .stg-n, .trv-pipe li.running .trv-node { animation: none !important; } }
 
 /* ---------- 版式：会议室需要足够高度；矮屏时页面上下滚动，保证研讨区与圆桌都清楚 ---------- */
-body.is-sw .sw { height: auto; grid-template-rows: auto auto minmax(330px, 44vh) auto auto; }
+body.is-sw .sw { height: auto; }
 .sw-room .sw-table { height: 318px !important; }
 .sw-agent.ag3 { width: 116px; padding: 7px 6px 10px; gap: 2px; }
 .ag3 .sw-ring { width: 56px; height: 56px; padding: 3px; }
@@ -192,13 +192,24 @@ body.is-sw .sw { height: auto; grid-template-rows: auto auto minmax(330px, 44vh)
 .ag3 .sw-an small { display: block !important; font-size: max(11px, calc(11px * var(--fs))); }
 .ag3 .sw-an b { font-size: calc(13.5px * var(--fs)); }
 .ag3 .sw-st { font-size: max(11px, calc(10.5px * var(--fs))); padding: 0 7px; }
-body.is-cl .cl { height: auto; grid-template-rows: auto auto minmax(300px, 40vh) auto; }
-@media (min-width: 1100px) and (min-height: 1000px) { body.is-cl .cl { height: calc(100vh - 88px); grid-template-rows: auto auto minmax(0, .85fr) minmax(0, 1.15fr); } }
+body.is-cl .cl { height: auto; }
+/* 版式（2026-09-27）：标题 → 快捷工具 → 动画教室（画面中间）→ 播放器 → 下方“实时数据 | 课堂实况”，宽屏时一屏放下 */
+@media (min-width: 1100px) and (min-height: 1000px) { body.is-cl .cl { height: calc(100dvh - var(--hdr-h, 70px) - 22px); } }
 body.is-cl .cl-stage { min-height: 460px; }
 /* 窄于 1480px：顶栏收起英文副题；工具栏允许换行（页面有纵向滚动条时不溢出） */
 @media (max-width: 1480px) { .brand small { display: none; } .nav a { padding: 8px 9px; } .sw-top.stage-top, .cl-top.stage-top { flex-wrap: wrap; row-gap: 6px; } .sw-top #st-badges, .cl-top #st-badges { order: 2; flex-basis: 100%; } }
 .sw > *, .cl > * { min-width: 0; }
-body.is-sw .sw { height: auto !important; grid-template-rows: auto auto clamp(380px, 50vh, 560px) auto auto !important; }
+/* 版式（2026-09-27）：标题 → 工具条 → 动画会议室（画面中间）→ 播放器 → 下方“任务进度 | 研讨对话”，宽屏时一屏放下 */
+/* 竖向排列用 flex：页面里可能临时插入提示条（如“课堂反馈已带回”），行数不固定；下方一行（对话/实况）始终吃掉剩余高度 */
+body.is-sw .sw, body.is-cl .cl { display: flex !important; flex-direction: column; height: auto !important; }
+body.is-sw .sw > *, body.is-cl .cl > * { flex: none; }
+@media (min-width: 1100px) { body.is-sw .sw-upper { height: max(440px, 42vh); } body.is-cl .cl-upper { height: max(360px, 40vh); } }
+@media (min-width: 1100px) and (min-height: 1000px) {
+  body.is-sw .sw, body.is-cl .cl { height: calc(100dvh - var(--hdr-h, 70px) - 22px) !important; }
+  body.is-sw .sw-upper, body.is-cl .cl-upper { flex: 1 1 240px; height: auto; min-height: 240px; }
+}
+@media (min-width: 1100px) { body.is-sw.sw-simple .sw-upper { flex: 1 1 auto; height: max(460px, calc(100vh - 250px)); } }
+
 
 /* ---------- 3D 水晶圆球头像 ---------- */
 .av-orb { display: block; width: 100%; height: 100%; overflow: visible; }

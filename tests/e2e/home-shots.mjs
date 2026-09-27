@@ -41,7 +41,7 @@ async function realClick(sel) { const b = await js(`const r=document.querySelect
 async function type(sel, text) { await js(`const el=document.querySelector(${JSON.stringify(sel)}); el.focus(); el.value=${JSON.stringify(text)}; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true}));`); }
 const check = (cond, msg) => { note(`${cond ? 'PASS' : 'FAIL'} ${msg}`); if (!cond) process.exitCode = 1; };
 
-// 首页三屏走查：多分辨率 × 深浅主题截图；检查无横向滚动、无统计数字、核心入口与双向箭头存在。
+// 首页一屏走查：多分辨率 × 深浅主题截图；检查桌面端一屏放下（无横向/纵向滚动）、无统计数字、实拍图已加载、核心入口与双向箭头存在。
 const scheme = (v) => cdp('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: v }] });
 try {
   await connect();
@@ -58,27 +58,16 @@ try {
       const r = await js(`const t=document.querySelector('.hx').innerText, cur=[...document.querySelectorAll('.hx-cur')].map(e=>e.innerText).join(' ');
         const body=t.replace(cur,'').replace(/v\d+/g,'');
         const s=document.querySelector('#portal-seminar').getBoundingClientRect(), c=document.querySelector('#portal-classroom').getBoundingClientRect(), h1=document.querySelector('#hx-title').getBoundingClientRect();
-        return { overflow: document.documentElement.scrollWidth > innerWidth, numbers: (body.match(/\d{2,}|\d+%/g)||[]), arrows: document.querySelectorAll('.arrows .arrow-btn').length,
+        return { overflow: document.documentElement.scrollWidth > innerWidth, numbers: (body.match(/\d{2,}|\d+%/g)||[]), arrows: document.querySelectorAll('.hx-bridge .arrow-btn').length, oneScreen: document.documentElement.scrollHeight <= innerHeight + 1, photos: [...document.querySelectorAll('.hx-photo')].every(i=>i.complete && i.naturalWidth > 0),
           titleVisible: h1.top >= 0 && h1.bottom < innerHeight, cardsInFirstScreen: s.top < innerHeight && (${!!mobile} || (s.bottom <= innerHeight + 4 && c.bottom <= innerHeight + 4)), sideBySide: Math.abs(s.top - c.top) < 4 }`);
-      check(!r.overflow && r.numbers.length === 0 && r.arrows === 2 && r.titleVisible && r.cardsInFirstScreen && (mobile ? !r.sideBySide || w >= 768 : r.sideBySide), `${theme} ${w}×${h}：${JSON.stringify(r)}`);
+      check(!r.overflow && r.numbers.length === 0 && r.arrows === 2 && r.photos && (mobile || r.oneScreen) && r.titleVisible && r.cardsInFirstScreen && (mobile ? !r.sideBySide || w >= 768 : r.sideBySide), `${theme} ${w}×${h}：${JSON.stringify(r)}`);
       await shot(`H-${theme}-${w}-1`);
-      if (w === 1440 || w === 390) {
-        await js("document.querySelector('#hx-disc').scrollIntoView()"); await sleep(1400); await shot(`H-${theme}-${w}-2`);
-        await js("document.querySelector('.hx-loop-sec').scrollIntoView()"); await sleep(2200); await shot(`H-${theme}-${w}-3`);
-      }
     }
   }
-  // 领域卡片 → 思政元素参考（真实参考库内容）
+  // 入口卡片进入对应模块
   await viewport(1440, 900); await go('/'); await sleep(1200);
-  await js("document.querySelector('#hx-disc').scrollIntoView()"); await sleep(1000);
-  await click('[data-disc="eng"]'); await waitFor("document.querySelector('.modal .hx-lib')");
-  const lib = await js("return [...document.querySelectorAll('.modal .hx-lib b')].map(b=>b.textContent)");
-  check(lib.length === 3, `新工科卡片打开平台思政元素参考库：${lib.join('、')}`);
-  await shot('H-disc-modal');
-  await js("[...document.querySelectorAll('.modal .actions button')].find(b=>b.textContent==='关闭').click()"); await sleep(300);
-  // 闭环节点可进入对应模块
-  await js("document.querySelector('.hx-node.n1').click()"); await sleep(1200);
-  check((await js('return location.pathname')) === '/classroom', '“演”节点进入演课场');
+  await click('#portal-classroom'); await sleep(1200);
+  check((await js('return location.pathname')) === '/classroom', '演课场卡片进入演课场');
   await js("history.back()"); await sleep(1200);
   check((await js("return document.body.classList.contains('is-home')")) === true, '返回首页');
   await go('/library'); await sleep(800);

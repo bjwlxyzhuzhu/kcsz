@@ -12,7 +12,7 @@
 }
 
 body.is-sw main#app { max-width: 1720px; padding: 10px 16px 12px; }
-.sw { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 10px; color: var(--sw-ink); }
+.sw { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; gap: 10px; color: var(--sw-ink); }
 @media (min-width: 1100px) and (min-height: 680px) { .sw { height: calc(100vh - 88px); } }
 .sw-top.stage-top { gap: 8px 10px; }
 .sw-top .spacer { flex: 1 1 auto; height: auto; }
@@ -25,7 +25,7 @@ body.is-sw main#app { max-width: 1720px; padding: 10px 16px 12px; }
 .sw-seats-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: 250px; padding: 10px 12px; border-radius: 12px; background: var(--sw-panel); border: 1px solid var(--sw-line); box-shadow: 0 16px 40px #0000002e; }
 
 /* ---------- 上部 ---------- */
-.sw-upper { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(320px, 1fr); gap: 12px; min-height: 0; }
+.sw-upper { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(0, 1.85fr); gap: 12px; min-height: 0; }
 .sw-talk, .sw-side { min-height: 0; display: flex; flex-direction: column; background: var(--sw-panel); border: 1px solid var(--sw-line); border-radius: 16px; box-shadow: 0 6px 24px #6b3a2a12; overflow: hidden; animation: sw-in .5s ease both; }
 .sw-side { animation-delay: .08s; }
 @keyframes sw-in { from { opacity: 0; transform: translateY(8px); } }
@@ -267,9 +267,14 @@ body.is-sw main#app { max-width: 1720px; padding: 10px 16px 12px; }
 /* 两层命名：页面内显示正式名 + 功能副题 */
 .sw-title small, .cl-title small { margin-left: 10px; font-size: calc(12.5px * var(--fs)); font-weight: 500; letter-spacing: .08em; color: var(--sw-ink-2); vertical-align: 2px; }
 /* 播放器条一行 */
-.sw { grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
+.sw { grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
 
 /* 简洁视图：只保留研讨对话、任务进度与播放器 */
 body.is-sw.sw-simple .sw-room, body.is-sw.sw-simple .sw-dock, body.is-sw.sw-simple .sw-filter { display: none !important; }
 body.is-sw.sw-simple .sw { grid-template-rows: auto auto minmax(460px, calc(100vh - 250px)) !important; }
 #sw-simple[aria-pressed="true"] { border-color: var(--sw-gold, #d6a34a); color: var(--sw-red, #a6192e); font-weight: 700; }
+
+/* 快捷工具条移到播放器上方（2026-09-26）：作为页面级工具栏，高度与播放器协调，“参与研课”按钮相应收紧 */
+.sw-dock { padding: 4px 8px; }
+.sw-dock > button:not(.participate) { padding: 6px 12px; }
+.sw-dock .participate { padding: 7px 18px; font-size: calc(14px * var(--fs)); }

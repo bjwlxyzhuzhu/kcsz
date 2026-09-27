@@ -331,15 +331,17 @@ export function summary(a) {
  * Arrow transfer: source = the module's explicit current artifact (never "latest history").
  * Creates a new target version, sets it current in the target module. Idempotent per key.
  */
-export function transfer(db, user, { from, idempotency_key, save_draft }) {
+/** 模块间流转：默认取来源模块的“当前产物”；给出 source_artifact_id 时改为导入指定的那一份（必须属于来源模块），不改变来源模块的当前产物。 */
+export function transfer(db, user, { from, idempotency_key, save_draft, source_artifact_id }) {
   check(MODULES.includes(from), 400, 'bad_module', '无效方向');
   check(typeof idempotency_key === 'string' && /^[A-Za-z0-9_-]{8,80}$/.test(idempotency_key), 400, 'bad_key', '缺少幂等键');
   const to = from === 'seminar' ? 'classroom' : 'seminar';
   return tx(db, () => {
     const done = one(db, 'SELECT * FROM transfers WHERE idempotency_key=?', idempotency_key);
     if (done) { check(done.owner_id === user.user_id, 409, 'key_conflict', '幂等键冲突'); return { replayed: true, transfer: done, target: rowToArtifact(one(db, 'SELECT * FROM artifacts WHERE artifact_id=?', done.target_artifact_id)) }; }
-    const src = getCurrent(db, user, from);
+    const src = source_artifact_id ? rowToArtifact(getOwned(db, user, source_artifact_id)) : getCurrent(db, user, from);
     check(src, 409, 'no_current', `${MODULE_NAME[from]}没有当前产物`);
+    check(src.module === from, 400, 'wrong_module', `该产物属于${MODULE_NAME[src.module]}，不能从${MODULE_NAME[from]}导入`);
     let savedFirst = false;
     if (src.status === 'draft') {
       check(save_draft === true, 409, 'draft_unsaved', '当前产物是未保存草稿，需确认“保存当前版本并导入”');

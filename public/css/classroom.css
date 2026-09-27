@@ -23,7 +23,7 @@ body.is-cl main#app { max-width: 1720px; padding: 10px 16px 12px; }
 @media (max-width: 1360px) { .cl-top { flex-wrap: wrap; } .cl-top #st-badges { order: 2; flex-basis: 100%; } }
 
 /* ---------- 上部 ---------- */
-.cl-upper { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(330px, 1fr); gap: 12px; min-height: 0; }
+.cl-upper { display: grid; grid-template-columns: minmax(330px, 1fr) minmax(0, 1.6fr); gap: 12px; min-height: 0; }
 .cl-live-panel, .cl-data, .cl-stage { min-height: 0; background: var(--sw-panel); border: 1px solid var(--sw-line); border-radius: 16px; box-shadow: 0 6px 24px #6b3a2a12; overflow: hidden; }
 .cl-live-panel, .cl-data { display: flex; flex-direction: column; animation: sw-in .5s ease both; }
 .cl-ph { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px 6px; }

@@ -59,8 +59,8 @@ try {
   const lay = await js(`const r=(s)=>document.querySelector(s).getBoundingClientRect(); const t=r('.sw-talk'), s=r('.sw-side'), tb=r('.sw-table'), d=r('.sw-dock');
     return { agents: document.querySelectorAll('.sw-agent').length, names:[...document.querySelectorAll('.sw-agent .sw-an b')].map(b=>b.textContent), head: document.querySelector('.sw-agent.head b')?.textContent,
       talkW: Math.round(t.width), sideW: Math.round(s.width), upperH: Math.round(t.height), tableH: Math.round(tb.height), overflow: document.documentElement.scrollWidth > innerWidth,
-      avatars3d: document.querySelectorAll('.sw-agent .av3d, .sw-agent .av-img').length, frame: !!document.querySelector('.sw-room.room-frame .rf-plate'), headTitle: document.querySelector('.sw-agent.head small')?.textContent }`);
-  check(lay.agents >= 6 && /陈立诚/.test(lay.head) && lay.headTitle === '教研组长' && !lay.overflow && lay.talkW > lay.sideW && lay.upperH >= 300 && lay.avatars3d === lay.agents && lay.frame, `研讨区 + 会议室外框、每位教师 3D 形象与固定姓名、组长主持 ${JSON.stringify(lay)}`);
+      avatars3d: document.querySelectorAll('.sw-agent .av3d, .sw-agent .av-img').length, frame: !!document.querySelector('.sw-room.room-frame .rf-plate'), headTitle: document.querySelector('.sw-agent.head small')?.textContent, dockAbovePlayer: d.bottom <= r('.sw-player').top + 1, roomAboveUpper: tb.bottom <= r('.sw-player').top && r('.sw-player').bottom <= t.top, sideLeftOfTalk: s.right <= t.left }`);
+  check(lay.agents >= 6 && /陈立诚/.test(lay.head) && lay.headTitle === '教研组长' && !lay.overflow && lay.talkW > lay.sideW && lay.upperH >= 300 && lay.avatars3d === lay.agents && lay.frame && lay.dockAbovePlayer && lay.roomAboveUpper && lay.sideLeftOfTalk, `快捷工具在上、会议室居中、播放器在会议室下方、进度左对话右、研讨区 + 会议室外框、每位教师 3D 形象与固定姓名、组长主持 ${JSON.stringify(lay)}`);
   await shot('S01-seminar-1440-light');
   if (!quick) {
     // 新建任务（边执行边观看）
@@ -118,7 +118,7 @@ try {
     await waitFor("/已完成|全部完成/.test(document.querySelector('.sw-side').innerText) && !/执行中/.test(document.querySelector('.sw-sum').innerText)", 240000);
     await shot('S05-seminar-done');
   }
-  for (const [w, h] of [[1920, 1080], [1366, 768]]) { await viewport(w, h); await go('/seminar'); await sleep(1500); const f = await js("return { msgsH: Math.round(document.querySelector('#feed').getBoundingClientRect().height), tableH: Math.round(document.querySelector('.sw-table').getBoundingClientRect().height), overflow: document.documentElement.scrollWidth > innerWidth }"); check(f.msgsH >= 180 && f.tableH >= 300 && !f.overflow, `${w}×${h} 研讨区与会议室都清楚、无横向滚动 ${JSON.stringify(f)}`); await shot(`S06-seminar-${w}`); }
+  for (const [w, h] of [[1920, 1080], [1366, 768]]) { await viewport(w, h); await go('/seminar'); await sleep(1500); const f = await js("return { msgsH: Math.round(document.querySelector('#feed').getBoundingClientRect().height), tableH: Math.round(document.querySelector('.sw-table').getBoundingClientRect().height), overflow: document.documentElement.scrollWidth > innerWidth, oneScreen: document.documentElement.scrollHeight <= innerHeight + 1 }"); check(f.msgsH >= 180 && f.tableH >= 300 && !f.overflow && (h < 1000 || f.oneScreen), `${w}×${h} 研讨区与会议室都清楚、无横向滚动${h >= 1000 ? '、一屏放下' : ''} ${JSON.stringify(f)}`); await shot(`S06-seminar-${w}`); }
   await viewport(1440, 900); await js("localStorage.setItem('yz-theme','dark')"); await go('/seminar'); await sleep(1500); await shot('S07-seminar-dark');
   await js("localStorage.setItem('yz-theme','light')");
   await viewport(768, 1024, true); await go('/seminar'); await sleep(1500); check(!(await js('return document.documentElement.scrollWidth > innerWidth')), '平板宽度无横向滚动'); await shot('S08-seminar-768');
