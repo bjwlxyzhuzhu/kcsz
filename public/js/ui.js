@@ -70,25 +70,34 @@ export function tour(key, steps, { force = false } = {}) {
   const ring = document.createElement('div'); ring.className = 'tour-ring';
   const card = document.createElement('div'); card.className = 'tour-card'; card.setAttribute('role', 'dialog'); card.setAttribute('aria-live', 'polite');
   document.body.append(ring, card);
-  const done = () => { ring.remove(); card.remove(); window.removeEventListener('resize', place); document.removeEventListener('keydown', onKey); try { localStorage.setItem(`yz-tour-${key}`, '1'); } catch { /* ignore */ } };
+  const done = () => { ring.remove(); card.remove(); window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true); document.removeEventListener('keydown', onKey); try { localStorage.setItem(`yz-tour-${key}`, '1'); } catch { /* ignore */ } };
   const onKey = (e) => { if (e.key === 'Escape') done(); if (e.key === 'ArrowRight' || e.key === 'Enter') next(); };
   const next = () => { i++; if (i >= list.length) done(); else place(); };
+  // 只定位（滚动、窗口变化时调用）：先定宽再量高，卡片始终完整留在视口内，按钮一定可点
+  function position() {
+    const st = list[i], el = st && document.querySelector(st.sel);
+    if (!el) return;
+    const r = el.getBoundingClientRect(), pad = 6;
+    Object.assign(ring.style, { left: `${r.left - pad}px`, top: `${r.top - pad}px`, width: `${r.width + pad * 2}px`, height: `${r.height + pad * 2}px` });
+    const cw = Math.min(320, innerWidth - 24);
+    card.style.width = `${cw}px`;
+    const ch = Math.min(card.offsetHeight || 160, innerHeight - 24);
+    let x = st.place === 'left' ? r.left - cw - 16 : st.place === 'right' ? r.right + 16 : r.left + r.width / 2 - cw / 2;
+    let y = st.place === 'top' ? r.top - ch - 16 : st.place === 'left' || st.place === 'right' ? r.top + r.height / 2 - ch / 2 : r.bottom + 16;
+    x = Math.max(12, Math.min(innerWidth - cw - 12, x)); y = Math.max(12, Math.min(innerHeight - ch - 12, y));
+    Object.assign(card.style, { left: `${x}px`, top: `${y}px` });
+  }
+  // 切换到某一步：目标立即滚入视口（不用平滑滚动，避免按滚动前的位置定位），再渲染并定位
   function place() {
     const st = list[i], el = document.querySelector(st.sel);
     if (!el) return next();
-    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    const r = el.getBoundingClientRect(), pad = 6;
-    Object.assign(ring.style, { left: `${r.left - pad}px`, top: `${r.top - pad}px`, width: `${r.width + pad * 2}px`, height: `${r.height + pad * 2}px` });
-    card.innerHTML = `<div class="tour-step">${i + 1} / ${list.length}</div><h4>${esc(st.title)}</h4><p>${esc(st.text)}</p><div class="row"><button class="ghost small" data-t="skip">跳过</button><span class="grow"></span><button class="primary small" data-t="next">${i === list.length - 1 ? '知道了' : '下一步'}</button></div>`;
-    card.querySelector('[data-t=skip]').onclick = done; card.querySelector('[data-t=next]').onclick = next;
-    const cw = Math.min(320, innerWidth - 32), ch = card.offsetHeight || 150;
-    let x = st.place === 'left' ? r.left - cw - 16 : st.place === 'right' ? r.right + 16 : r.left + r.width / 2 - cw / 2;
-    let y = st.place === 'top' ? r.top - ch - 16 : st.place === 'left' || st.place === 'right' ? r.top + r.height / 2 - ch / 2 : r.bottom + 16;
-    x = Math.max(16, Math.min(innerWidth - cw - 16, x)); y = Math.max(70, Math.min(innerHeight - ch - 16, y));
-    Object.assign(card.style, { left: `${x}px`, top: `${y}px`, width: `${cw}px` });
-    card.querySelector('[data-t=next]').focus();
+    el.scrollIntoView({ block: 'nearest' });
+    card.innerHTML = `<button type="button" class="tour-x" data-t="close" aria-label="关闭引导">×</button><div class="tour-step">${i + 1} / ${list.length}</div><h4>${esc(st.title)}</h4><p>${esc(st.text)}</p><div class="row"><button class="ghost small" data-t="skip">跳过</button><span class="grow"></span><button class="primary small" data-t="next">${i === list.length - 1 ? '知道了' : '下一步'}</button></div>`;
+    card.querySelector('[data-t=skip]').onclick = done; card.querySelector('[data-t=close]').onclick = done; card.querySelector('[data-t=next]').onclick = next;
+    position();
+    card.querySelector('[data-t=next]').focus({ preventScroll: true });
   }
-  window.addEventListener('resize', place); document.addEventListener('keydown', onKey);
+  window.addEventListener('resize', position); window.addEventListener('scroll', position, true); document.addEventListener('keydown', onKey);
   place();
 }
 export const resetTours = () => { try { Object.keys(localStorage).filter((k) => k.startsWith('yz-tour-')).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } };

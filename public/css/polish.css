@@ -57,3 +57,9 @@
 .pick-main small, .pick-side small { color: var(--muted); font-size: calc(12.5px * var(--fs)); }
 .pick-side { flex: none; display: grid; justify-items: end; gap: 2px; }
 .pick-side em { font-style: normal; font-size: 12px; padding: 1px 8px; border-radius: 999px; color: #fff; background: #a6192e; }
+
+/* 操作引导卡片：永不超出视口；右上角 × 可随时关闭 */
+.tour-card { max-height: calc(100vh - 24px); overflow: auto; padding-right: 34px; }
+.tour-x { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; }
+.tour-x:hover:not(:disabled) { background: #a6192e1a; color: #a6192e; transform: none; }
+.tour-ring { transition: none; }

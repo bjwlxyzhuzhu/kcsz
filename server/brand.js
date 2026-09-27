@@ -1,5 +1,6 @@
 // 品牌版本：同一套程序以不同名称运行（启动时设置环境变量 YANZHI_BRAND）。
-// 默认品牌为“研思智境”；YANZHI_BRAND=szsx 时为参赛版“演知思政——基于Agents协同与对抗的虚拟教研实训工场”。
+// 默认（未设置 YANZHI_BRAND，或设为 szsx）为参赛版“演知思政——基于Agents协同与对抗的虚拟教研实训工场”；
+// 设为 yszj 时恢复原名“研思智境”。这样只上传代码、按 npm start / Dockerfile 启动的公网站点也显示“演知思政”。
 // 替换只作用于界面文字、页面标题、Logo 与数字客服的回答，不改变任何功能与数据。
 export const BRANDS = {
   szsx: {
@@ -7,7 +8,8 @@ export const BRANDS = {
     en: 'Agents Collaboration & Confrontation · Virtual Teaching-Research Studio',
   },
 };
-export const BRAND = BRANDS[process.env.YANZHI_BRAND] || null;
+export const BRAND_KEY = String(process.env.YANZHI_BRAND || 'szsx').trim().toLowerCase();
+export const BRAND = BRANDS[BRAND_KEY] || null; // yszj 或其他未登记的值：原名“研思智境”
 
 const PAIRS = BRAND ? [
   ['研思智境（原“研思智境”）', BRAND.name],

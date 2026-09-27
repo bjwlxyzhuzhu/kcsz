@@ -4,12 +4,15 @@
   "private": true,
   "description": "研思智境——“研—演—评—改”多智能体数字教研实验工坊（本地服务端 + 教师前台 + 管理员后台）",
   "type": "module",
-  "engines": { "node": ">=22.13" },
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "start": "node server/server.js",
     "start:szsx": "node --env-file=szsx.env server/server.js",
     "init-admin": "node server/cli.js create-admin",
     "cli": "node server/cli.js",
-    "test": "node --test --test-concurrency=1 tests/*.test.js"
+    "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "start:yszj": "node --env-file=yszj.env server/server.js"
   }
 }
