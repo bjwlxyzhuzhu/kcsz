@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { one, all, run, id, now, check, fail, audit, json } from './db.js';
 import { unzip } from './zip.js';
+import { IS_ZH, CULTURE_TERMS } from './domain.js';
 
 export const MATERIAL_KINDS = {
   talent_plan: '人才培养方案', syllabus: '教学大纲', semester_design: '学期教学设计', course_design: '课程教学设计',
@@ -112,9 +113,10 @@ export function loadMaterials(db, user, ids) {
 }
 
 // ---- ideology vocabulary and lightweight reading of materials for demo mode (no model) ----
-export const BASE_IDEOLOGY_TERMS = ['课程思政', '立德树人', '社会主义核心价值观', '家国情怀', '爱国', '工匠精神', '劳模精神', '科学精神', '创新精神', '职业道德', '职业规范', '职业素养',
+const BASE_IDEOLOGY_TERMS_IDEO = ['课程思政', '立德树人', '社会主义核心价值观', '家国情怀', '爱国', '工匠精神', '劳模精神', '科学精神', '创新精神', '职业道德', '职业规范', '职业素养',
   '工程伦理', '科技伦理', '社会责任', '工程责任', '责任担当', '诚信', '法治', '规范意识', '质量意识', '质量责任', '安全意识', '公共安全', '公共利益', '生态文明', '绿色发展',
   '可持续发展', '文化自信', '奉献精神', '团队协作', '集体主义', '国家标准', '价值判断', '价值冲突', '价值观', '思政', '伦理', '责任'];
+export const BASE_IDEOLOGY_TERMS = IS_ZH ? CULTURE_TERMS : BASE_IDEOLOGY_TERMS_IDEO;
 export function ideologyTerms(course = {}) {
   const extra = String(course.ideology_elements || '').split(/[、,，;；\s]+/).map((x) => x.trim()).filter((x) => x.length >= 2 && x.length <= 12);
   return [...new Set([...extra, ...BASE_IDEOLOGY_TERMS])].sort((a, b) => b.length - a.length);

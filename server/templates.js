@@ -1,6 +1,7 @@
 // Built-in teaching design frameworks, 课程思政 artifact templates, seminar roles/modes and rubric v1.
 // Three separate axes: 研讨模式 (who/how) · 教学设计框架 (how the design is organised) · 产物类型 (what is produced).
 import { one, all, run, id, now, tx, check, audit, json } from './db.js';
+import { IS_ZH, CULTURE_LIBRARY, ZH_ROLES } from './domain.js';
 
 const FRAMEWORK_NOTE = '框架步骤为教学设计的组织方式说明；宣传材料中的教学效果不作为已验证结论。';
 
@@ -44,7 +45,7 @@ const QTYPES = ['选择', '判断', '简答', '案例分析', '实践任务'];
 export const LESSON_MINUTES = [15, 25, 45, 50, 90];
 
 /** 思政元素参考库：类别、元素与“与专业知识结合”的引导问题。只给思考框架，不收录政策原文，避免编造条文。 */
-export const IDEOLOGY_LIBRARY = [
+const IDEOLOGY_LIBRARY_BASE = [
   { key: 'mission', name: '家国情怀与使命担当', elements: ['家国情怀', '民族复兴', '科技自立自强', '服务国家战略'], questions: ['本知识点在我国相关产业/工程中的发展与突破是什么？（注明来源）', '学生未来岗位如何服务地方和国家需求？'] },
   { key: 'science', name: '科学精神与创新', elements: ['科学精神', '求真务实', '创新精神', '批判性思维'], questions: ['这一结论是如何被验证的？有哪些前提和边界？', '如果数据与预期不符，应如何处理？'] },
   { key: 'ethics', name: '工程伦理与社会责任', elements: ['工程伦理', '社会责任', '公共安全', '公共利益'], questions: ['技术决策会影响哪些利益相关者？', '当成本、进度与安全冲突时，依据什么做出取舍？'] },
@@ -140,7 +141,7 @@ export const ARTIFACT_TYPES = {
 export const PDCA_SECTION = { key: 'pdca', title: 'PDCA 改进循环', kind: 'table', owner: 'evidence',
   columns: cols([['phase', '阶段', 'select', ['计划', '实施', '检查', '改进']], ['content', '内容', 'longtext'], ['evidence', '证据/指标', 'longtext'], ['next_action', '下一步', 'longtext']]) };
 
-export const SEMINAR_ROLES = {
+const SEMINAR_ROLES_BASE = {
   leader: { name: '教研组长', duty: '主持、分派、轮询进度、处理冲突、整合成果' },
   designer: { name: '教学设计教师', duty: '目标、框架阶段与活动设计' },
   subject: { name: '专业教师', duty: '专业内容准确性与案例的专业依据' },
@@ -151,6 +152,9 @@ export const SEMINAR_ROLES = {
   industry: { name: '行业导师', duty: '岗位真实情境与职业规范' },
   junior: { name: '青年教师', duty: '学情视角与课堂可操作性' },
 };
+// 国际中文版：文化与交际要素库、教研角色（见 server/domain.js）
+export const IDEOLOGY_LIBRARY = IS_ZH ? CULTURE_LIBRARY : IDEOLOGY_LIBRARY_BASE;
+export const SEMINAR_ROLES = IS_ZH ? ZH_ROLES : SEMINAR_ROLES_BASE;
 export const DEFAULT_SEATS = ['leader', 'designer', 'subject', 'ideology', 'assessor', 'evidence', 'industry', 'junior'];
 // 研课八步：任务分配 → 讨论交流 → 写作初稿 → 对抗质询 → 打磨修改 → 整合汇总 → 集体评审 → 形成终稿
 export const FULL_PHASES = ['assign', 'discuss', 'draft', 'debate', 'revise', 'integrate', 'review', 'finalize'];

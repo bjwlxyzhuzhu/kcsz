@@ -1,75 +1,145 @@
-// 首页（一屏）：品牌名 + 研课场 ⇄ 演课场两张实拍入口卡片与双向流转箭头。不展示统计数字；双向流转逻辑与原首页一致。
-import { post, get, key } from './api.js';
+// 首页展示两种教研场景；点击场景卡片后再登录进入。
+import { post, key } from './api.js';
 import { esc, $$, toast, fail, confirmBox, TYPE_NAME, MODULE_NAME, tour } from './ui.js';
 
-const ARROW = (dir) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${dir === 'right' ? '<path d="M4 12h15M13 6l6 6-6 6"/>' : '<path d="M20 12H5M11 6l-6 6 6 6"/>'}</svg>`;
-// 实拍照片轮播（Unsplash License，可免费使用、无需署名；页脚仍注明作者）
-const PHOTOS = {
-  seminar: [
-    { src: '/img/home/seminar-1.webp', alt: '两位教师在办公桌前对照资料讨论教学设计', by: 'blue sky' },
-    { src: '/img/home/seminar-2.webp', alt: '教师们围坐会议桌逐条研读材料', by: 'blue sky' },
-    { src: '/img/home/seminar-3.webp', alt: '青年教师团队围着笔记本电脑协作讨论', by: 'Van Tay Media' },
-  ],
-  classroom: [
-    { src: '/img/home/classroom-1.webp', alt: '阶梯教室里教师提问，学生举手回应', by: 'Vitaly Gariev' },
-    { src: '/img/home/classroom-2.webp', alt: '满黑板板书的大学课堂', by: 'Shubham Sharan' },
-    { src: '/img/home/classroom-3.webp', alt: '学生在大教室里听课', by: 'Vishnu Mehra' },
-  ],
+const SCENES = {
+  seminar: {
+    index: '01', name: '研课场', kicker: '协同研课',
+    title: '让每一次教研，都有更深的对话。',
+    description: '汇集课程资料与教学问题，让多智能体协同研讨讲解要点、思政融入与评价方式，形成可继续打磨的教学成果。',
+    image: '/img/home/seminar-1.webp',
+  },
+  classroom: {
+    index: '02', name: '演课场', kicker: '虚拟演课',
+    title: '在走进课堂之前，先看见课堂。',
+    description: '把教学设计带入虚拟课堂，与学生智能体展开提问、质疑和讨论，再将反馈带回教研，持续修订。',
+    image: '/img/home/classroom-1.webp',
+  },
 };
-const CREDITS = [...new Set(Object.values(PHOTOS).flat().map((p) => p.by))].join('、');
 
-export async function pageHome(root, { navigate }) {
-  const h = await get('/api/home');
-  const cur = (m) => h.current[m];
-  const label = (m) => (cur(m) ? `当前：${cur(m).title} · v${cur(m).version}${cur(m).status === 'draft' ? '（草稿）' : ''}` : '当前暂无产物');
-  const arrow = (from) => {
-    const to = from === 'seminar' ? 'classroom' : 'seminar';
-    const src = cur(from);
-    const name = `将${MODULE_NAME[from]}当前产物导出并导入${MODULE_NAME[to]}`;
-    const tip = src ? `导入${MODULE_NAME[to]}` : `${MODULE_NAME[from]}暂无当前产物`;
-    return `<button class="arrow-btn hx-arrow" data-from="${from}" aria-label="${esc(src ? name : `${name}（不可用：${MODULE_NAME[from]}暂无当前产物）`)}" ${src ? '' : 'disabled'}>${ARROW(from === 'seminar' ? 'right' : 'left')}<span class="tip" role="tooltip">${esc(tip)}</span></button>`;
-  };
-  const card = (m) => {
-    const S = m === 'seminar';
-    return `<a class="hx-card ${m}" id="portal-${m}" href="/${m}" data-link="/${m}" aria-label="进入${S ? '研课场' : '演课场'}">
-      <div class="hx-media">${PHOTOS[m].map((p, i) => `<img class="hx-photo${i ? '' : ' on'}" src="${p.src}" alt="${p.alt}" decoding="async">`).join('')}
-        <span class="hx-dots" aria-hidden="true">${PHOTOS[m].map((_, i) => `<i${i ? '' : ' class="on"'}></i>`).join('')}</span></div>
-      <div class="hx-body">
-        <div><h2>${S ? '研课场' : '演课场'}</h2><p>${S ? '教师智能体协同研课，生成教案与课件' : '学生智能体按班级学情模拟上课'}</p><p class="hx-cur">${esc(label(m))}</p></div>
-        <span class="hx-go">进入 ›</span>
-      </div></a>`;
+export async function pageHome(root, { navigate, authenticated = false }) {
+  const choice = (mode) => {
+    const s = SCENES[mode];
+    return `<button type="button" class="hx-choice${mode === 'seminar' ? ' active' : ''}" id="portal-${mode}" data-scene="${mode}" aria-pressed="${mode === 'seminar'}">
+      <span class="hx-choice-index">${s.index} / ${s.kicker}</span>
+      <span class="hx-choice-name">${s.name}</span>
+      <span class="hx-choice-action" aria-hidden="true">↗</span>
+    </button>`;
   };
 
   document.body.classList.add('is-home');
-  root.innerHTML = `<div class="hx"><div class="hx-bg" aria-hidden="true"><i class="b1"></i><i class="b2"></i><i class="b3"></i><span class="hx-grid"></span></div>
-    <header class="hx-intro"><h1 id="hx-title">研思智境</h1><p>“研—演—评—改”多智能体数字教研实验工坊</p></header>
-    <div class="hx-stage">${card('seminar')}<div class="hx-bridge">${arrow('seminar')}${arrow('classroom')}</div>${card('classroom')}</div>
-    <p class="hx-credit">照片：${CREDITS} · <a href="https://unsplash.com/license" target="_blank" rel="noopener">Unsplash License</a>　|　演课场中的学生为智能体，模拟结果不代表真实学生表现</p>
-  </div>`;
+  root.innerHTML = `<section class="hx" aria-label="研思智境首页">
+    <div class="hx-scenes" aria-hidden="true">
+      ${Object.entries(SCENES).map(([mode, s]) => `<img class="hx-scene${mode === 'seminar' ? ' active' : ''}" data-bg="${mode}" src="${s.image}" alt="" decoding="async">`).join('')}
+    </div>
+    <div class="hx-scrim" aria-hidden="true"></div>
+    <div class="hx-light" aria-hidden="true"></div>
+    <canvas class="hx-particles" aria-hidden="true"></canvas>
+    <div class="hx-content">
+      <div class="hx-center">
+        <h1 id="hx-title">${SCENES.seminar.title}</h1>
+        <p class="hx-description" id="hx-description">${SCENES.seminar.description}</p>
+        <div class="hx-choices" role="group" aria-label="选择教研空间">${choice('seminar')}${choice('classroom')}</div>
+      </div>
+    </div>
+  </section>`;
 
-
-  tour('home', [
-    { sel: '#portal-seminar', place: 'right', title: '① 研课场', text: '导入讲义、大纲、课件等课程内容后，系统自动解析知识点，教研组逐个知识点研讨讲解要点、难点、思政融入与检测题，生成教案、试卷等成果；可随时暂停与继续。' },
-    { sel: '.arrow-btn[data-from=seminar]', place: 'bottom', title: '② 导入课堂 →', text: '把研课场的“当前产物”（如教案）导出并导入演课场。点击后会先让你确认。' },
-    { sel: '#portal-classroom', place: 'left', title: '③ 演课场', text: '按设定课时（如 50 分钟）开课：教师依次讲解，学生智能体自主、随机地提问、质疑和讨论；可倍速运行，也可以随时以教师或学生身份插话。' },
-    { sel: '.arrow-btn[data-from=classroom]', place: 'bottom', title: '④ 反馈回研讨 ←', text: '把课堂生成的反馈带回研课场，作为反思修订的依据。' },
-    { sel: '#credit-pill', place: 'bottom', title: '⑤ 积分与导出', text: '真实模型每次成功回复按费率扣积分，开始前会显示预算；本地生成、编辑、流转、导出都不扣积分。右侧可导出研究数据。' },
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const stopParticles = animateParticles(root.querySelector('.hx-particles'), reducedMotion);
+  let active = 'seminar';
+  let paused = false;
+  const showScene = (next) => {
+    if (next === active) return;
+    active = next;
+    $$('.hx-choice', root).forEach((item) => {
+      const selected = item.dataset.scene === next;
+      item.classList.toggle('active', selected);
+      item.setAttribute('aria-pressed', String(selected));
+    });
+    $$('.hx-scene', root).forEach((image) => image.classList.toggle('active', image.dataset.bg === next));
+    root.querySelector('#hx-title').textContent = SCENES[next].title;
+    root.querySelector('#hx-description').textContent = SCENES[next].description;
+    if (!reducedMotion.matches) root.querySelector('.hx-center').animate([
+      { opacity: .55, transform: 'translateY(8px)' },
+      { opacity: 1, transform: 'translateY(0)' },
+    ], { duration: 550, easing: 'ease-out' });
+  };
+  const choices = root.querySelector('.hx-choices');
+  choices.addEventListener('mouseenter', () => { paused = true; });
+  choices.addEventListener('mouseleave', () => { paused = false; });
+  choices.addEventListener('focusin', () => { paused = true; });
+  choices.addEventListener('focusout', () => { paused = false; });
+  const carousel = window.setInterval(() => {
+    if (!paused && !document.querySelector('#teacher-login')?.open && !document.querySelector('#admin-login')?.open) {
+      showScene(active === 'seminar' ? 'classroom' : 'seminar');
+    }
+  }, 5200);
+  $$('.hx-choice', root).forEach((button) => button.addEventListener('click', () => {
+    const next = button.dataset.scene;
+    showScene(next);
+    navigate(`/${next}`);
+  }));
+  if (authenticated) tour('home', [
+    { sel: '#portal-seminar', place: 'bottom', title: '① 研课场', text: '点击进入研课场，导入课程内容并与智能体协同研讨。' },
+    { sel: '#portal-classroom', place: 'bottom', title: '② 演课场', text: '点击进入演课场，让学生智能体模拟提问、质疑和讨论。' },
+    { sel: '#credit-pill', place: 'bottom', title: '③ 积分与导出', text: '真实模型每次成功回复按费率扣积分；本地生成、编辑和导出不扣积分。' },
   ]);
-  $$('.arrow-btn:disabled', root).forEach((b) => { b.title = b.querySelector('.tip').textContent; });
-  $$('.arrow-btn[data-from]', root).forEach((b) => b.addEventListener('click', () => doTransfer(b.dataset.from, cur(b.dataset.from), () => pageHome(root, { navigate }))));
 
-  return () => { document.body.classList.remove('is-home'); timers.forEach((t) => { clearTimeout(t); clearInterval(t); }); };
+  return () => {
+    window.clearInterval(carousel);
+    stopParticles();
+    document.body.classList.remove('is-home');
+  };
+}
+
+function animateParticles(canvas, reducedMotion) {
+  if (reducedMotion.matches) return () => {};
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return () => {};
+  const particles = Array.from({ length: 44 }, () => ({
+    x: Math.random(), y: Math.random(), speed: .012 + Math.random() * .024,
+    radius: .5 + Math.random() * 1.1, phase: Math.random() * Math.PI * 2,
+  }));
+  let width = 0, height = 0, frame = 0, previous = 0;
+  const resize = () => {
+    const bounds = canvas.getBoundingClientRect();
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    width = bounds.width; height = bounds.height;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  };
+  const observer = new ResizeObserver(resize);
+  observer.observe(canvas);
+  resize();
+  const draw = (time) => {
+    const delta = Math.min((time - previous) / 1000 || 0, .05);
+    previous = time;
+    ctx.clearRect(0, 0, width, height);
+    if (!document.hidden) {
+      for (const particle of particles) {
+        particle.y = (particle.y - particle.speed * delta + 1) % 1;
+        const shimmer = .35 + .35 * Math.sin(time / 1200 + particle.phase);
+        ctx.fillStyle = `rgba(245, 235, 207, ${shimmer})`;
+        ctx.fillRect(particle.x * width, particle.y * height, particle.radius, particle.radius * 1.8);
+      }
+    }
+    frame = requestAnimationFrame(draw);
+  };
+  frame = requestAnimationFrame(draw);
+  return () => { cancelAnimationFrame(frame); observer.disconnect(); };
 }
 
 export async function doTransfer(from, src, redraw) {
+  if (!src) return;
   const to = from === 'seminar' ? 'classroom' : 'seminar';
   const draft = src.status === 'draft';
   const ok = await confirmBox('确认流转', `<p style="font-size:calc(18px * var(--fs));margin:0 0 10px;color:var(--gold)">${MODULE_NAME[from]} → ${MODULE_NAME[to]}</p>
     <dl class="kv"><dt>源产物</dt><dd>${esc(src.title)}</dd><dt>版本</dt><dd>v${src.version}${draft ? '（未保存草稿）' : ''} · ${esc(TYPE_NAME[src.type] || src.type)}</dd><dt>摘要</dt><dd class="small">${esc(src.summary)}</dd></dl>`, draft ? '保存当前版本并导入' : '确认');
   if (!ok) return;
   try {
-    const r = await post('/api/transfers', { from, idempotency_key: key('xfer'), save_draft: draft });
-    toast(`已导入${MODULE_NAME[to]}：${r.target.title} · v${r.target.version}`);
+    const result = await post('/api/transfers', { from, idempotency_key: key('xfer'), save_draft: draft });
+    toast(`已导入${MODULE_NAME[to]}：${result.target.title} · v${result.target.version}`);
     redraw();
-  } catch (e) { fail(e); }
+  } catch (error) { fail(error); }
 }

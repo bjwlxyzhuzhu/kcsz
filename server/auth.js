@@ -2,6 +2,7 @@
 import { scryptSync, randomBytes, timingSafeEqual, createHash } from 'node:crypto';
 import { one, all, run, id, now, tx, fail, check, getSetting, audit } from './db.js';
 import { grantInitial } from './credits.js';
+import * as license from './license.js';
 
 const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64 };
 const ABSOLUTE_SESSION_MS = 7 * 24 * 3600e3;
@@ -57,6 +58,7 @@ export function createUser(db, { login, display_name, password, is_teacher = tru
   check(/^[A-Za-z0-9_.@-]{3,40}$/.test(login), 400, 'bad_login', '登录名需 3—40 位字母、数字或 _.@-');
   checkPasswordPolicy(password);
   check(!one(db, 'SELECT 1 FROM users WHERE login=?', login), 409, 'login_taken', '登录名已存在');
+  if (is_teacher) license.checkSeat(db); // 机构授权席位（仅启用授权的版本）
   return tx(db, () => {
     const user_id = id('user');
     if (avatar_key != null) check(AVATAR_KEYS.includes(avatar_key), 400, 'bad_avatar', '请从 12 个头像中选择');
@@ -137,6 +139,7 @@ export function setUserStatus(db, admin, userId, status) {
   const u = one(db, 'SELECT * FROM users WHERE user_id=?', userId);
   check(u, 404, 'not_found', '用户不存在');
   check(!(u.user_id === admin.user_id && status === 'disabled'), 400, 'self_disable', '不能停用自己');
+  if (status === 'active' && u.status !== 'active' && u.is_teacher) license.checkSeat(db);
   tx(db, () => {
     run(db, 'UPDATE users SET status=? WHERE user_id=?', status, userId);
     if (status === 'disabled') run(db, 'DELETE FROM sessions WHERE user_id=?', userId);
@@ -148,6 +151,7 @@ export function setUserRoles(db, admin, userId, { is_teacher, is_admin }) {
   const u = one(db, 'SELECT * FROM users WHERE user_id=?', userId);
   check(u, 404, 'not_found', '用户不存在');
   check(!(u.user_id === admin.user_id && is_admin === false), 400, 'self_demote', '不能移除自己的管理员权限');
+  if (is_teacher === true && !u.is_teacher && u.status === 'active') license.checkSeat(db);
   tx(db, () => {
     if (typeof is_teacher === 'boolean') run(db, 'UPDATE users SET is_teacher=? WHERE user_id=?', is_teacher ? 1 : 0, userId);
     if (typeof is_admin === 'boolean') run(db, 'UPDATE users SET is_admin=? WHERE user_id=?', is_admin ? 1 : 0, userId);

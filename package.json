@@ -13,6 +13,7 @@
     "init-admin": "node server/cli.js create-admin",
     "cli": "node server/cli.js",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
-    "start:yszj": "node --env-file=yszj.env server/server.js"
+    "start:yszj": "node --env-file=yszj.env server/server.js",
+    "start:zw": "node --env-file=zw.env server/server.js"
   }
 }

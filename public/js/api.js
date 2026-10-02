@@ -9,7 +9,7 @@ export async function api(method, path, body, { raw = false } = {}) {
   if (!res.ok) {
     const e = data?.error || { code: 'http_' + res.status, message: `请求失败（${res.status}）` };
     const err = new ApiError(res.status, e.code, e.message, e);
-    if (res.status === 401 && !path.includes('/auth/')) window.dispatchEvent(new CustomEvent('yz:unauth', { detail: path }));
+    if (res.status === 401 && path !== '/api/me' && !path.includes('/auth/')) window.dispatchEvent(new CustomEvent('yz:unauth', { detail: path }));
     if (e.code === 'must_change_password') window.dispatchEvent(new CustomEvent('yz:mustchange'));
     throw err;
   }

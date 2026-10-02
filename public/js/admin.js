@@ -26,11 +26,7 @@ async function route() {
 }
 
 function login() {
-  $('#header').hidden = true; $('#shell').hidden = true;
-  $('#login-root').innerHTML = `<div class="login-wrap" style="position:relative;z-index:1"><form class="panel login-card" id="lf"><div class="fs-switch" role="group" aria-label="字号"><button type="button" data-fs-set="m" title="标准字号">A</button><button type="button" data-fs-set="l" title="较大字号">A</button><button type="button" data-fs-set="xl" title="特大字号">A</button></div><div class="theme-switch" role="group" aria-label="显示模式"><button type="button" data-theme-set="auto" title="自动：跟随系统">◐</button><button type="button" data-theme-set="light" title="浅色">☀</button><button type="button" data-theme-set="dark" title="深色">☾</button></div><div class="login-logo"><img src="/img/logo-full.png" alt="研思智境 · Research · Reflection · Simulation · Improvement · Multi-Agent Teaching Research Intelligence"></div><h1 class="login-title">管理员登录</h1><div class="small muted login-sub">研思智境平台后台 · 与教师入口分开的会话</div>
-    <div style="display:grid;gap:12px"><label>登录名<input name="login" autocomplete="username"></label><label>密码<input name="password" type="password" autocomplete="current-password"></label><button class="primary">登录</button><a class="small" href="/login">← 教师入口</a>
-    <p class="small faint">首个管理员账号通过受保护的部署初始化命令创建（npm run init-admin），系统不内置默认密码。</p></div></form></div>`;
-  $('#lf').addEventListener('submit', async (e) => { e.preventDefault(); try { me = (await post('/api/admin/auth/login', formData(e.target))).user; go('/admin'); } catch (err) { fail(err); } });
+  location.replace('/?admin=login');
 }
 async function changePw() {
   app.innerHTML = `<form class="panel" id="pw" style="max-width:460px"><h2>请先修改初始密码</h2><div style="display:grid;gap:10px"><label>原密码<input type="password" name="old_password"></label><label>新密码<input type="password" name="new_password"></label><button class="primary">修改</button></div></form>`;
@@ -48,6 +44,28 @@ async function overview() {
     <div class="kpi"><b>${o.model_calls.success_rate == null ? '—' : `${o.model_calls.success_rate}%`}</b><span>模型成功率</span></div></div>
     <div class="grid2"><div class="panel"><h2>模型状态</h2><p>${o.model_status.code === 'ok' ? '<span class="badge green">默认模型可用</span>' : `<span class="badge warn">${esc(o.model_status.message)}</span>`}</p><p class="small muted">费用信息：${esc(o.cost_info)}</p></div>
     <div class="panel"><h2>密钥保护</h2><p class="small">主密钥来源：<b>${o.master_key_source === 'env' ? '环境变量 YANZHI_MASTER_KEY' : '服务端数据目录 master.key（开发模式）'}</b></p>${o.master_key_source === 'env' ? '' : '<div class="notice small">正式部署请设置环境变量 YANZHI_MASTER_KEY 并妥善保管，不要提交到代码库。</div>'}</div></div>`;
+  await licensePanel();
+}
+
+// ---------- 机构授权（仅启用授权的版本显示） ----------
+const LIC_MODE = { demo: ['展示评估版', 'warn'], licensed: ['已授权', 'green'], grace: ['已到期（宽限期）', 'warn'], expired: ['已到期', 'red'], invalid: ['授权无效', 'red'] };
+async function licensePanel() {
+  const l = await get('/api/admin/license');
+  if (!l.enabled) return;
+  const [label, tone] = LIC_MODE[l.mode] || [l.mode, 'warn'];
+  const seats = ['licensed', 'grace'].includes(l.mode) ? l.seats : l.demo_seats;
+  const box = document.createElement('div');
+  box.className = 'panel'; box.style.marginTop = '14px';
+  box.innerHTML = `<h2>机构授权 <span class="badge ${tone}">${esc(label)}</span></h2>
+    <dl class="kv">${l.licensee ? `<dt>授权单位</dt><dd>${esc(l.licensee)}（${esc(l.edition || '')}，编号 ${esc(l.license_id || '')}）</dd><dt>有效期</dt><dd>${esc(l.starts || '')} 至 ${esc(l.expires)}${l.mode === 'licensed' ? `（剩余 ${l.days_left} 天）` : l.mode === 'grace' ? `（宽限期剩余 ${l.grace_days_left} 天）` : ''}</dd>` : ''}
+    <dt>教师席位</dt><dd>已用 ${l.seats_used} / ${seats}</dd>${l.reason ? `<dt>说明</dt><dd>${esc(l.reason)}</dd>` : ''}</dl>
+    <p class="small muted">未安装授权时为展示评估版：全部功能可用，教师账号不超过 ${l.demo_seats} 个。授权到期后有 ${l.grace_days} 天宽限期；宽限期结束后不能新建研课与演课，已有数据仍可查看和导出。</p>
+    <label>安装授权文件（license.json，由平台方签发）<input type="file" id="lic-file" accept=".json,application/json"></label>`;
+  app.appendChild(box);
+  $('#lic-file').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    try { await post('/api/admin/license', { license: await f.text() }); toast('授权已安装'); route(); } catch (err) { fail(err); }
+  });
 }
 
 // ---------- 教师管理 ----------

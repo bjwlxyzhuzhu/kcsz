@@ -591,7 +591,7 @@ function prepareClassroomStep(db, r) {
     event: { actor_id, actor_type: isSilence ? 'system' : 'scripted_agent', kind, reply_to: act.target_event_id || null, target_actor: act.target_actor || null, group_id: act.group_id || null, stage: stage.key },
     prompt: isSilence ? null : classroomPrompt(act, { stage, student, memory, publicHistory, unitLabel: plan.unit_label, names, segment: stage.segments?.[act.segment] }),
     eventExtra: (text) => ({ class_clock_ms: act.class_clock_ms ?? null, sim_duration_ms: act.sim_ms == null ? null : durationOf(text), ideology_terms: JSON.stringify(matchTerms(text, terms).slice(0, 12)) }),
-    demoText: () => demoClassLine(act, stage, names, u, { lastText: lastEv?.text, knowledge: plan.knowledge || [] }),
+    demoText: () => demoClassLine(act, stage, names, u, { lastText: lastEv?.text, knowledge: plan.knowledge || [], student }),
     challenge: act.action === 'challenge' ? { open: true, target_actor: act.target_actor, target_ref: act.target_event_id ? `event:${act.target_event_id}` : `stage:${stage.key}` } : null,
     commit: (ev) => {
       const s2 = json(one(db, 'SELECT state FROM runs WHERE run_id=?', r.run_id).state);

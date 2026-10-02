@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { one, all, run, id, now, tx, check, fail, audit, json } from './db.js';
 import { extractText, piiScan, redact, BASE_IDEOLOGY_TERMS } from './materials.js';
 import { SEMINAR_ROLES } from './templates.js';
+import { IS_ZH, learnerIdentity, ZH_CUSTOM_PRESETS } from './domain.js';
 
 // ---------- 固定教师团队（虚构姓名，形象参数只决定外观） ----------
 export const TEACHER_ROSTER = {
@@ -19,12 +20,13 @@ export const TEACHER_ROSTER = {
 };
 export const FIXED_TEACHERS = Object.keys(TEACHER_ROSTER);
 export const CUSTOM_SLOTS = ['custom1', 'custom2'];
-export const CUSTOM_PRESETS = [
+const CUSTOM_PRESETS_BASE = [
   { title: '专业课教师', duty: '讲授本专业核心课程，关注知识体系与实践能力', prompt: '你是一名有十余年教龄的专业课教师，熟悉本专业核心课程与实验实训。发言时先说清专业概念与适用条件，再结合典型工程或实践案例，给出可执行的教学建议。' },
   { title: '专业博导', duty: '学科前沿、研究方法与学术规范', prompt: '你是本学科的博士生导师，长期从事科研与研究生培养。发言时关注知识点背后的科学问题、研究前沿与学术规范，指出教学内容与学科发展的联系，但避免超出本科学生的接受程度。' },
   { title: '企业工程师', duty: '一线生产工艺、质量标准与岗位要求', prompt: '你是企业一线工程师，熟悉生产现场、质量标准与岗位能力要求。发言时用真实岗位中的做法检验教学设计是否贴近实际，指出学生上岗后最容易出错的环节。' },
   { title: '教学督导', duty: '课堂规范、教学目标达成与评价', prompt: '你是学校教学督导，听课经验丰富。发言时关注教学目标是否清楚、环节是否紧凑、评价是否与目标一致，给出具体、可操作的改进意见。' },
 ];
+export const CUSTOM_PRESETS = IS_ZH ? ZH_CUSTOM_PRESETS : CUSTOM_PRESETS_BASE;
 export const CUSTOM_LOOKS = [
   { gender: 'm', age: 46, look: { hair: 'short', hairColor: '#2a2522', grey: 0.25, glasses: 'rect', cloth: 'suit', color: '#3c2f4f', tie: '#b98a47', skin: 1 } },
   { gender: 'f', age: 50, look: { hair: 'bun', hairColor: '#2a2020', grey: 0.3, glasses: 'round', cloth: 'blazer', color: '#23434a', shirt: '#f6f1ea', skin: 0 } },
@@ -41,6 +43,7 @@ export const STUDENT_NAMES = [
 const SURNAMES = '赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳';
 const GIVEN = [['子航', 'm'], ['思雨', 'f'], ['浩然', 'm'], ['欣妍', 'f'], ['晨曦', 'f'], ['明哲', 'm'], ['诗涵', 'f'], ['嘉懿', 'm'], ['雨泽', 'm'], ['梦洁', 'f'], ['一凡', 'm'], ['语嫣', 'f'], ['俊熙', 'm'], ['佳琪', 'f'], ['泽宇', 'm'], ['静雯', 'f']];
 export function studentIdentity(i) {
+  if (IS_ZH) return learnerIdentity(i); // 国际中文版：来自不同国家的学习者
   if (i < STUDENT_NAMES.length) return { name: STUDENT_NAMES[i][0], gender: STUDENT_NAMES[i][1] };
   const k = i - STUDENT_NAMES.length, s = SURNAMES[k % SURNAMES.length], g = GIVEN[Math.floor(k / SURNAMES.length) % GIVEN.length];
   return { name: `${s}${g[0]}${k >= SURNAMES.length * GIVEN.length ? Math.floor(k / (SURNAMES.length * GIVEN.length)) + 1 : ''}`, gender: g[1] };

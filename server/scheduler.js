@@ -74,6 +74,7 @@ export function makeStudents(config, seed, overrides = null) {
       seat: i, avatar: Math.floor(av() * 60),
       traits: { prior_knowledge: prior, interests, expressiveness: round3(clamp(0.15 + r() * 0.8, 0, 1)), skepticism: round3(clamp(skMean + (r() - 0.5) * 0.5, 0, 1)),
         cooperation: round3(clamp(coMean + (r() - 0.5) * 0.5, 0, 1)), simulated_mastery: prior } });
+    if (who.country) Object.assign(out.at(-1).traits, { country: who.country, l1: who.l1, hsk: 1 + Math.round(prior * 5) }); // 国际中文版：国别、母语、中文水平
     if (ov?.traits) { const t = out.at(-1).traits; for (const [k, v] of Object.entries(ov.traits)) if (v != null) t[k] = typeof v === 'number' ? round3(clamp(v, 0, 1)) : v; t.simulated_mastery = t.prior_knowledge; t.gender = out.at(-1).gender; if (ov.code) t.profile_code = ov.code; } else out.at(-1).traits.gender = out.at(-1).gender;
   }
   return out;

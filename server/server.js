@@ -20,7 +20,8 @@ import * as jobs from './jobs.js';
 import * as agents from './agents.js';
 import * as study from './study.js';
 import * as assistant from './assistant.js';
-import { BRAND, brandText, brandImage } from './brand.js';
+import * as license from './license.js';
+import { BRAND, brandText, brandDeep, brandImage, recolor } from './brand.js';
 import { analyzeMaterials } from './knowledge.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -34,6 +35,7 @@ export function createApp({ dataDir = process.env.YANZHI_DATA_DIR || join(ROOT, 
   mkdirSync(dataDir, { recursive: true });
   const db = openDb(dbFile || join(dataDir, 'yanzhi.db'));
   const keySource = models.loadMasterKey(dataDir);
+  license.load(dataDir); // 机构授权（仅启用授权的版本）
   tpl.seedTemplates(db);
   credits.migrateInitialGrants(db, Number(getSetting(db, 'signup_bonus')));
   runs.reconcile(db, { startup: true });
@@ -66,7 +68,7 @@ export function createApp({ dataDir = process.env.YANZHI_DATA_DIR || join(ROOT, 
     if (body.avatar_key) auth.setAvatar(db, u, body.avatar_key);
     return { user: auth.publicUser(one(db, 'SELECT * FROM users WHERE user_id=?', u.user_id)) };
   });
-  route('GET', '/api/public-config', 'public', () => ({ self_register: getSetting(db, 'self_register') === '1' }));
+  route('GET', '/api/public-config', 'public', () => { const l = license.status(); return { self_register: getSetting(db, 'self_register') === '1', license: l.enabled ? { mode: l.mode, licensee: l.licensee || null, expires: l.expires || null } : null }; });
   // ---------- 数字客服思思 ----------
   route('POST', '/api/assistant/public-ask', 'public', ({ body, req }) => assistant.ask(db, null, body, { publicMode: true, ip: req.socket.remoteAddress }));
   route('GET', '/api/assistant/status', 'teacher', () => assistant.status(db));
@@ -155,7 +157,7 @@ export function createApp({ dataDir = process.env.YANZHI_DATA_DIR || join(ROOT, 
   route('GET', '/api/transfers', 'teacher', ({ user }) => ({ transfers: all(db, 'SELECT * FROM transfers WHERE owner_id=? ORDER BY created_at DESC', user.user_id) }));
 
   route('POST', '/api/runs/estimate', 'teacher', ({ user, body }) => ({ ...runs.estimate(db, user, body), balance: credits.balance(db, user.user_id) }));
-  route('POST', '/api/runs', 'teacher', ({ user, body }) => runs.publicRun(db, runs.createRun(db, user, body)));
+  route('POST', '/api/runs', 'teacher', ({ user, body }) => { license.checkActive(); return runs.publicRun(db, runs.createRun(db, user, body)); });
   route('GET', '/api/runs', 'teacher', ({ user, query }) => ({ runs: runs.listRuns(db, user, query.module) }));
   route('GET', '/api/runs/:id', 'teacher', ({ user, params, query }) => runs.runView(db, user, params.id, { after: query.after }));
   route('POST', '/api/runs/:id/start', 'teacher', ({ user, params }) => runs.publicRun(db, runs.startRun(db, user, params.id)));
@@ -178,7 +180,7 @@ export function createApp({ dataDir = process.env.YANZHI_DATA_DIR || join(ROOT, 
     if (!stream) return runs.stepRun(db, user, params.id, { idempotency_key: body.idempotency_key });
     res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' });
     let seq = 0;
-    const emit = (type, data) => { res.write(`id: ${++seq}\nevent: ${type}\ndata: ${JSON.stringify(data)}\n\n`); };
+    const emit = (type, data) => { res.write(`id: ${++seq}\nevent: ${type}\ndata: ${JSON.stringify(brandDeep(data))}\n\n`); };
     try { await runs.stepRun(db, user, params.id, { idempotency_key: body.idempotency_key, emit }); }
     catch (e) { if (!(e instanceof HttpError)) console.error(e); emit('error', e instanceof HttpError ? { code: e.code, message: e.message, ...(e.extra || {}) } : { code: 'internal', message: '服务器内部错误' }); }
     res.end();
@@ -251,6 +253,8 @@ export function createApp({ dataDir = process.env.YANZHI_DATA_DIR || join(ROOT, 
       model_status: models.resolveProvider(db).error || { code: 'ok' }, master_key_source: keySource,
     };
   });
+  route('GET', '/api/admin/license', 'admin', () => ({ ...license.status(), seats_used: one(db, "SELECT COUNT(*) n FROM users WHERE is_teacher=1 AND status='active'").n, demo_seats: license.DEMO_SEATS, grace_days: license.GRACE_DAYS }));
+  route('POST', '/api/admin/license', 'admin', ({ user, body }) => { const s = license.install(body.license); audit(db, { actor: user, action: 'license_installed', target_type: 'license', target_id: s.license_id, detail: { licensee: s.licensee, seats: s.seats, expires: s.expires } }); return s; });
   route('GET', '/api/admin/users', 'admin', ({ query }) => ({ users: auth.listUsers(db, query.q) }));
   route('POST', '/api/admin/users', 'admin', ({ user, body }) => {
     const temp = body.password || `Yz${randomUUID().replace(/-/g, '').slice(0, 8)}7`;
@@ -344,11 +348,13 @@ const STREAMED = Symbol('streamed');
 function publicLedger(e) { return { entry_id: e.entry_id, type: e.type, amount: e.amount, reserved_delta: e.reserved_delta, total_after: e.total_after, reserved_after: e.reserved_after, run_id: e.run_id, reason: e.reason, created_at: e.created_at }; }
 
 function send(res, status, obj) {
-  const b = Buffer.from(JSON.stringify(obj));
+  const b = Buffer.from(JSON.stringify(brandDeep(obj))); // 国际中文版：领域术语替换（只改显示，不改库中数据）
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'content-length': b.length });
   res.end(b);
 }
 function raw(res, buf, type, filename) {
+  if (BRAND?.terms && /^(text\/|application\/json)/.test(type)) buf = Buffer.from(brandText(buf.toString('utf8')), 'utf8');
+  if (BRAND?.terms && filename) filename = brandText(filename);
   const h = { 'content-type': type, 'content-length': buf.length, 'cache-control': 'no-store' };
   if (filename) h['content-disposition'] = `attachment; filename="download${extnameOf(filename)}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
   res.writeHead(200, h); res.end(buf); return STREAMED;
@@ -372,7 +378,9 @@ function serveStatic(pathname, res) {
   if (BRAND && pathname.startsWith('/img/') && !pathname.startsWith('/img/brand/')) { const alt = join(PUBLIC, brandImage(pathname.slice(5))); if (existsSync(alt)) file = alt; }
   if (!existsSync(file) || !statSync(file).isFile()) return send(res, 404, { error: { code: 'not_found', message: '页面不存在' } });
   let b = readFileSync(file);
-  if (BRAND && ['.html', '.js'].includes(extname(file))) b = Buffer.from(brandText(b.toString('utf8')), 'utf8');
+  const ext = extname(file);
+  if (BRAND && ['.html', '.js'].includes(ext)) b = Buffer.from(brandText(b.toString('utf8')), 'utf8');
+  if (BRAND?.palette && ['.css', '.js', '.svg', '.html'].includes(ext)) b = Buffer.from(recolor(b.toString('utf8'), { shortHex: ['.css', '.svg'].includes(ext) }), 'utf8'); // 品牌配色
   res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream', 'content-length': b.length, 'cache-control': extname(file) === '.html' ? 'no-store' : 'no-cache' });
   res.end(b);
 }

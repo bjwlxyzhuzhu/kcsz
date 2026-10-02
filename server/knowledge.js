@@ -2,6 +2,7 @@
 // Produces course facts, knowledge points (term + definition + source), difficulties, a knowledge-specific
 // 课程思政 linkage and a checking question per point, plus retrieval-based answers grounded in the materials.
 // Everything returned carries its source (《文件名》· 章节); nothing is invented beyond templated phrasing.
+import { IS_ZH, CULTURE_RULES, CULTURE_TEMPLATES, CULTURE_RE } from './domain.js';
 
 const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 const stripNum = (s) => clean(s).replace(/^(第[一二三四五六七八九十百\d]+[章节单元讲部分篇]|[一二三四五六七八九十]+[、.．]|（[一二三四五六七八九十\d]+）|\(\d+\)|\d+(\.\d+)*[、.．\s]|【第\d+页】|[-•·●■◆]\s*)\s*/, '').trim();
@@ -14,7 +15,7 @@ const DEF_PATTERNS = [
   /^把([^，。；]{4,40})称为[「“"]?([^，。；「」“”"]{2,14})[」”"]?/,
   /^([^，。；：:\s]{2,12})[:：]\s*([^。！？]{6,160})/,
 ];
-const IDEO_RULES = [
+const IDEO_RULES_BASE = [
   ['ethics', '工程伦理与社会责任', '工程伦理', /安全|风险|事故|质量|可靠|失效|检测|检验|伦理|隐私|算法|偏见|故障/],
   ['craft', '职业规范与工匠精神', '工匠精神', /标准|规范|精度|公差|工艺|操作|规程|误差|加工|装配|测量|施工/],
   ['integrity', '诚信与学术规范', '诚信', /数据|记录|报告|实验结果|统计|引用|原始/],
@@ -24,7 +25,7 @@ const IDEO_RULES = [
   ['culture', '文化自信与人文素养', '文化自信', /古代|传统|文化|发明|历史/],
   ['science', '科学精神与创新', '科学精神', /./],
 ];
-const IDEO_TEMPLATES = {
+const IDEO_TEMPLATES_BASE = {
   ethics: (t) => `讲「${t}」时设置决策情境：在进度或成本压力下，是否可以放宽与「${t}」相关的要求？让学生说明对使用者和公众的责任，并给出专业依据`,
   craft: (t) => `结合「${t}」对应的标准或操作规程，讨论“差不多就行”可能造成的后果，体会精益求精的职业要求（标准号需核查）`,
   integrity: (t) => `在「${t}」涉及的数据记录与报告环节，讨论为什么不能修改或选择性报告数据，以及出现异常数据时的正确做法`,
@@ -34,6 +35,10 @@ const IDEO_TEMPLATES = {
   culture: (t) => `结合「${t}」相关的技术史或人物（注明出处），讨论文化自信与创新传承`,
   science: (t) => `引导学生追问「${t}」的前提、适用条件与验证方式，区分事实、推断和未经核实的说法，培养求真务实的科学精神`,
 };
+
+// 国际中文版：按文化与交际要素类别匹配（最后一条为兜底）
+const IDEO_RULES = IS_ZH ? CULTURE_RULES : IDEO_RULES_BASE;
+const IDEO_TEMPLATES = IS_ZH ? CULTURE_TEMPLATES : IDEO_TEMPLATES_BASE;
 
 function sentencesOf(text) {
   return text.split(/(?<=[。！？；\n])/).map(clean).filter((s) => s.length >= 6 && s.length <= 220);
@@ -71,7 +76,7 @@ function guessCourse(materials) {
 export function analyzeMaterials(materials, { max = 30 } = {}) {
   const kps = []; const seen = new Set(); const sectionsAll = [];
   const ideologySentences = [];
-  const IDEO_WORDS = /课程思政|思政|立德树人|价值观|家国|工匠精神|职业道德|职业素养|社会责任|工程伦理|诚信|法治|爱国|使命|担当/;
+  const IDEO_WORDS = IS_ZH ? CULTURE_RE : /课程思政|思政|立德树人|价值观|家国|工匠精神|职业道德|职业素养|社会责任|工程伦理|诚信|法治|爱国|使命|担当/;
   for (const m of materials) {
     const secs = sectionsOf(m);
     for (const sec of secs) {
@@ -123,7 +128,7 @@ export function analyzeMaterials(materials, { max = 30 } = {}) {
 function enrich(kp, all, usage = {}) {
   const text = `${kp.term}${kp.term}${kp.definition}${kp.key_sentences.join('')}`;
   // evidence score per category, lightly discounted by how often a category was already used (keeps linkages varied)
-  const scored = IDEO_RULES.map((r) => { const n = r[0] === 'science' ? 0.8 : (text.match(new RegExp(r[3].source, 'g')) || []).length; return [r, n, n ? n - 2.5 * (usage[r[0]] || 0) : -99]; }).sort((a, b) => b[2] - a[2]);
+  const scored = IDEO_RULES.map((r) => { const n = r === IDEO_RULES.at(-1) ? 0.8 : (text.match(new RegExp(r[3].source, 'g')) || []).length; return [r, n, n ? n - 2.5 * (usage[r[0]] || 0) : -99]; }).sort((a, b) => b[2] - a[2]);
   const [cat, catName, element] = scored[0][0];
   usage[cat] = (usage[cat] || 0) + 1;
   const sibling = all.find((o) => o !== kp && [...o.term].filter((ch) => kp.term.includes(ch)).length >= 2);
@@ -142,8 +147,10 @@ function enrich(kp, all, usage = {}) {
     kp.question = { qtype: '选择', stem: `关于「${kp.term}」，下列说法正确的是（  ）`, options: opts.map((o, i) => `${letters[i]}. ${o}`).join('\n'), answer: letters[pos],
       analysis: `依据${kp.source}：「${kp.term}」${kp.definition.slice(0, 80)}。其他选项分别描述的是${others.slice(0, opts.length - 1).map((o) => `「${o.term}」`).join('、')}。` };
   } else {
-    kp.question = { qtype: '简答', stem: `请用自己的话说明「${kp.term}」，并举一个专业中的应用实例。`, options: '', answer: `要点：${kp.definition.slice(0, 100)}`, analysis: `依据${kp.source}` };
+    kp.question = { qtype: '简答', stem: IS_ZH ? `请用「${kp.term}」说一个与你的生活有关的句子，并说明它在什么场合使用。` : `请用自己的话说明「${kp.term}」，并举一个专业中的应用实例。`, options: '', answer: `要点：${kp.definition.slice(0, 100)}`, analysis: `依据${kp.source}` };
   }
+  if (IS_ZH) { kp.case_question = { qtype: '交际任务', stem: `情境：你在中国（如在商店、校园或朋友家）需要用到「${kp.term}」。请用中文完成这段交际，并说一说在你的国家遇到类似情况时会怎么表达，有什么不同（${element}）。`,
+    rubric: '语言形式正确（40%）；表达得体、完成交际任务（40%）；能描述文化异同而不评判（20%）。' }; return; }
   kp.case_question = { qtype: '案例分析', stem: `情境：在一项涉及「${kp.term}」的专业任务中，团队面临进度或成本压力，有人提出变通做法。请结合「${kp.term}」的专业要求判断是否可行，并分析其中的${element}问题。`,
     rubric: '专业依据正确完整（40%）；价值判断有理由、能权衡相关方利益（40%）；表达清楚（20%）。不以立场本身给分。' };
 }

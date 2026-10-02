@@ -8,3 +8,7 @@ master.key
 szsx.env
 yszj.env
 node_modules/
+data-zw/
+zw.env
+license.json
+*-private.pem

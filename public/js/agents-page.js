@@ -162,11 +162,10 @@ export async function renderAgents(root, { state, navigate, query, invalidate })
   }
   function drawProfiles() {
     const ps = data.class_profiles;
-    $('#cp-list').innerHTML = ps.length ? `<table class="data"><thead><tr><th>画像</th><th>人数</th><th>分组</th><th>导入时间</th><th></th></tr></thead><tbody>${ps.map((p) => `<tr><td><b>${esc(p.name)}</b></td><td>${p.n}</td><td>${p.stats?.groups || '—'} 组 × ${p.group_size}</td><td class="small">${fmtTime(p.created_at)}</td><td><div class="row" style="gap:4px;flex-wrap:nowrap"><button type="button" class="small" data-view="${p.profile_id}">查看</button><button type="button" class="small primary" data-use="${p.profile_id}">用于开课</button><button type="button" class="small" data-exp="${p.profile_id}">导出</button><button type="button" class="small ghost" data-rm="${p.profile_id}">删除</button></div></td></tr>`).join('')}</tbody></table>` : '<p class="small faint">还没有班级画像。未导入时，学生智能体使用系统按设置随机生成的参数。</p>';
+    $('#cp-list').innerHTML = ps.length ? `<table class="data"><thead><tr><th>画像</th><th>人数</th><th>分组</th><th>导入时间</th><th></th></tr></thead><tbody>${ps.map((p) => `<tr><td><b>${esc(p.name)}</b></td><td>${p.n}</td><td>${p.stats?.groups || '—'} 组 × ${p.group_size}</td><td class="small">${fmtTime(p.created_at)}</td><td><div class="row" style="gap:4px;flex-wrap:nowrap"><button type="button" class="small" data-view="${p.profile_id}">查看</button><button type="button" class="small primary" data-use="${p.profile_id}">用于开课</button><button type="button" class="small ghost" data-rm="${p.profile_id}">删除</button></div></td></tr>`).join('')}</tbody></table>` : '<p class="small faint">还没有班级画像。未导入时，学生智能体使用系统按设置随机生成的参数。</p>';
     $$('[data-view]').forEach((b) => b.addEventListener('click', async () => showProfile(await get(`/api/class-profiles/${b.dataset.view}`), false)));
     $$('[data-use]').forEach((b) => b.addEventListener('click', () => { try { localStorage.setItem('yz-class-profile', b.dataset.use); } catch { /* ignore */ } toast('已选择：演课场下一次开课将使用这份画像'); navigate('/classroom'); }));
     $$('[data-rm]').forEach((b) => b.addEventListener('click', async () => { if (!(await confirmBox('删除班级画像', '<p>删除后不再用于新开的课堂，已结束的课堂记录不受影响。</p>', '删除', 'danger'))) return; try { await del(`/api/class-profiles/${b.dataset.rm}`); data = await get('/api/agents'); drawProfiles(); } catch (e) { fail(e); } }));
-    $$('[data-exp]').forEach((b) => b.addEventListener('click', async () => { try { await exportProfileCsv(b.dataset.exp); } catch (e) { fail(e); } }));
   }
   async function importProfile() {
     let file = null;
@@ -196,45 +195,6 @@ export async function renderAgents(root, { state, navigate, query, invalidate })
       ${animate ? '<p class="trv-note">各阶段的结果由服务器实际计算得出；为便于观察，依次展开显示。</p>' : ''}</div>`,
       onMount: (m) => { if (!animate) return; $$('.cp-pipe li', m).forEach((li, i) => { setTimeout(() => li.classList.add('running'), i * 420); setTimeout(() => { li.classList.remove('running'); li.classList.add('done'); }, i * 420 + 380); }); },
       buttons: [{ label: '关闭', value: null }, { label: '用于开课', cls: 'primary', handler: async () => { try { localStorage.setItem('yz-class-profile', p.profile_id); } catch { /* ignore */ } navigate('/classroom'); } }] });
-  }
-  // ---------------- 学情导出：学生群体画像 → CSV ----------------
-  // 导出实现（exportStudentProfile 合并版）：UTF-8 带 BOM（Excel 打开中文不乱码）、
-  // 全字段 CSV 引号转义（含表头）、固定列 + 画像维度列结构、缺失值填空字符串。
-  function exportStudentProfile(students, templateColumns, profileName) {
-    if (!students?.length) { toast('暂无可导出的画像数据，请先导入', true); return; }
-    try {
-      const FIXED = ['代号', '学生智能体', '分组'];
-      let profileKeys;
-      if (Array.isArray(templateColumns) && templateColumns.length > 3) {
-        const ok = FIXED.every((h, i) => templateColumns[i] === h);
-        if (!ok) { console.warn('[导出画像] 模板前三列与 代号/学生智能体/分组 不符，已回退为按画像字段导出'); profileKeys = null; }
-        else profileKeys = templateColumns.slice(3);
-      }
-      if (!profileKeys) profileKeys = [...new Set(students.flatMap((s) => Object.keys(s.profile ?? {})))];
-      const headers = [...FIXED, ...profileKeys];
-      const escCsv = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-      const rows = students.map((s) => [escCsv(s.code ?? ''), escCsv(s.name ?? ''), escCsv(s.group ?? ''), ...profileKeys.map((k) => escCsv(s.profile?.[k] ?? ''))].join(','));
-      const csv = '\uFEFF' + headers.map(escCsv).join(',') + '\n' + rows.join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const safeName = String(profileName || '导出').replace(/[\\/:*?"<>|]/g, '-');
-      a.download = `学生群体画像_${safeName}_${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 100);
-    } catch (error) { console.error('[导出画像] 导出失败:', error); toast('导出失败，请重试', true); }
-  }
-  async function exportProfileCsv(profileId) {
-    const p = await get(`/api/class-profiles/${profileId}`);
-    const students = p.rows.map((r, i) => ({
-      code: r.code,
-      name: i < data.students.length ? data.students[i].name : `第${i + 1}位`,
-      group: `第${Math.floor(i / p.group_size) + 1}组`,
-      profile: { 前测成绩: pct(r.prior), 发言活跃度: pct(r.express), 质疑倾向: pct(r.skeptic), 合作倾向: pct(r.coop), 兴趣方向: (r.interests || []).join('、'), 常见误解: r.note || '' }
-    }));
-    exportStudentProfile(students, ['代号', '学生智能体', '分组', '前测成绩', '发言活跃度', '质疑倾向', '合作倾向', '兴趣方向', '常见误解'], p.name);
-    toast(`已导出「${p.name}」的画像数据（${p.rows.length} 名学生）`);
   }
   draw();
 }

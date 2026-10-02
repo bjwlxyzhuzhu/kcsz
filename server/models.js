@@ -3,6 +3,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { BRAND, brandText } from './brand.js';
 import { one, all, run, id, now, tx, fail, check, audit, getSetting, setSetting } from './db.js';
 
 let MASTER = null;
@@ -142,6 +143,7 @@ async function* sseLines(body) {
  * Throws ModelError with a specific code. Never falls back to scripted text.
  */
 export async function chat(cfg, { system, messages, max_tokens, onDelta, signal }) {
+  if (BRAND?.terms) { system = brandText(system); messages = messages.map((m) => (typeof m.content === 'string' ? { ...m, content: brandText(m.content) } : m)); } // 国际中文版：提示词中的领域术语
   const key = decrypt(cfg);
   const n = inflight.get(cfg.provider_id) || 0;
   if (n >= cfg.concurrency) throw new ModelError('concurrency_limit', '模型并发已达上限，请稍后');

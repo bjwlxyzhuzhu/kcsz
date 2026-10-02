@@ -13,6 +13,7 @@ import { ioButtons, bindIo } from './smart-io.js';
 const root = document.getElementById('app');
 export const state = { me: null, balance: null, catalog: null };
 let dispose = null;
+let routeVersion = 0;
 
 // ---------- session ----------
 export async function refreshMe() {
@@ -23,12 +24,23 @@ export async function refreshMe() {
     $('#credit-reserved').textContent = r.balance.reserved ? ` · 冻结 ${r.balance.reserved}` : '';
     $('#user-btn').innerHTML = `<span class="hdr-ava">${userAvatar(r.user.avatar_key, r.user.user_id)}</span>${esc(r.user.display_name)} ▾`;
     return r;
-  } catch { return null; }
+  } catch {
+    state.me = null; state.balance = null; state.catalog = null;
+    $('#credit-available').textContent = '—';
+    $('#credit-reserved').textContent = '';
+    $('#user-btn').textContent = '教师登录';
+    return null;
+  }
 }
 export async function catalog() { if (!state.catalog) { state.catalog = await get('/api/catalog'); setAgentRegistry({ roles: state.catalog.agent_roles, studentAvatars: state.catalog.student_avatars }); } return state.catalog; }
 export const invalidateCatalog = () => { state.catalog = null; };
 
-window.addEventListener('yz:unauth', () => { if (location.pathname !== '/login') navigate('/login'); });
+window.addEventListener('yz:unauth', () => {
+  const target = location.pathname === '/' ? '/' : location.pathname + location.search;
+  state.me = null; state.balance = null; state.catalog = null;
+  navigate('/', true);
+  openTeacherLogin(target);
+});
 window.addEventListener('yz:mustchange', () => { if (location.pathname !== '/account') { toast('首次登录请先修改密码', true); navigate('/account'); } });
 
 // ---------- router ----------
@@ -39,22 +51,44 @@ window.addEventListener('yz:mustchange', () => { if (location.pathname !== '/acc
   if ('ResizeObserver' in window) new ResizeObserver(fit).observe(hdr);
   fit();
 }
-const routes = { '/login': pageLogin, '/': () => renderHome(root, { navigate, getCatalog: catalog }), '/seminar': (q) => stage(renderSeminar, q), '/classroom': (q) => stage(renderClassroom, q), '/library': pageLibrary, '/rating': pageRating, '/export': pageExport, '/account': pageAccount, '/agents': (q) => stage((r, ctx) => renderAgents(r, { ...ctx, invalidate: invalidateCatalog }), q), '/research': (q) => renderResearch(root, { navigate, query: q }) };
-export function navigate(path, replace = false) { if (replace) history.replaceState(null, '', path); else history.pushState(null, '', path); route(); }
+const routes = { '/': () => renderHome(root, { navigate, authenticated: !!state.me }), '/seminar': (q) => stage(renderSeminar, q), '/classroom': (q) => stage(renderClassroom, q), '/library': pageLibrary, '/rating': pageRating, '/export': pageExport, '/account': pageAccount, '/agents': (q) => stage((r, ctx) => renderAgents(r, { ...ctx, invalidate: invalidateCatalog }), q), '/research': (q) => renderResearch(root, { navigate, query: q }) };
+export function navigate(path, replace = false) {
+  const pathname = new URL(path, location.href).pathname;
+  if (pathname === '/login') { history.replaceState(null, '', '/'); route(); if (!state.me) openTeacherLogin('/'); return; }
+  if (!state.me && pathname !== '/') { openTeacherLogin(path); return; }
+  if (replace) history.replaceState(null, '', path); else history.pushState(null, '', path);
+  route();
+}
 async function route() {
+  const version = ++routeVersion;
   if (dispose) { try { dispose(); } catch { /* ignore */ } dispose = null; }
   const url = new URL(location.href);
+  const directLogin = url.pathname === '/login';
+  if (!state.me) await refreshMe();
+  if (version !== routeVersion) return;
+  const gatedTarget = !state.me && url.pathname !== '/' && !directLogin ? url.pathname + url.search : directLogin && !state.me ? '/' : null;
+  if (gatedTarget || directLogin) { history.replaceState(null, '', '/'); url.pathname = '/'; url.search = ''; }
   const fn = routes[url.pathname] || routes['/'];
   const navKey = { '/rating': '/research', '/export': '/research' }[url.pathname] || url.pathname;
   $$('.nav a').forEach((a) => a.classList.toggle('active', a.dataset.link === navKey));
-  helpBtn.hidden = url.pathname === '/login';
-  if (url.pathname !== '/login') {
-    if (!state.me) { const me = await refreshMe(); if (!me) return navigate('/login', true); }
-    $('#header').hidden = false;
-    if (state.me.must_change_password && url.pathname !== '/account') return navigate('/account', true);
-  } else $('#header').hidden = true;
+  helpBtn.hidden = false;
+  $('#header').hidden = false;
+  if (state.me?.must_change_password && url.pathname !== '/account') return navigate('/account', true);
   root.innerHTML = '';
-  try { const d = await fn(Object.fromEntries(url.searchParams)); if (typeof d === 'function') dispose = d; } catch (e) { if (!(e instanceof ApiError && e.status === 401)) { root.innerHTML = `<div class="notice red">${esc(e.message)}</div>`; console.error(e); } }
+  try {
+    const d = await fn(Object.fromEntries(url.searchParams));
+    if (version !== routeVersion) { if (typeof d === 'function') d(); return; }
+    if (typeof d === 'function') dispose = d;
+    if (gatedTarget) openTeacherLogin(gatedTarget);
+    if (url.pathname === '/' && url.searchParams.get('admin') === 'login') {
+      history.replaceState(null, '', '/');
+      openAdminLogin();
+    }
+    if (url.searchParams.has('cleared')) toast('已退出并清空本机缓存');
+  } catch (e) {
+    if (version !== routeVersion) return;
+    if (!(e instanceof ApiError && e.status === 401)) { root.innerHTML = `<div class="notice red">${esc(e.message)}</div>`; console.error(e); }
+  }
 }
 window.addEventListener('popstate', route);
 document.addEventListener('click', (e) => {
@@ -62,7 +96,10 @@ document.addEventListener('click', (e) => {
   if (a && !e.ctrlKey && !e.metaKey) { e.preventDefault(); $('#user-menu').classList.remove('open'); navigate(a.dataset.link); }
   if (!e.target.closest('#user-menu')) $('#user-menu').classList.remove('open');
 });
-$('#user-btn').addEventListener('click', () => { const m = $('#user-menu'); m.classList.toggle('open'); $('#user-btn').setAttribute('aria-expanded', m.classList.contains('open')); });
+$('#user-btn').addEventListener('click', () => {
+  if (!state.me) return openTeacherLogin('/account');
+  const m = $('#user-menu'); m.classList.toggle('open'); $('#user-btn').setAttribute('aria-expanded', m.classList.contains('open'));
+});
 $('#logout').addEventListener('click', async () => {
   $('#user-menu').classList.remove('open');
   const how = await modal({ title: '退出登录', body: `<div class="logout-opts"><p>请选择退出方式：</p>
@@ -79,11 +116,11 @@ $('#logout').addEventListener('click', async () => {
     try { Object.keys(localStorage).filter((k) => k.startsWith('yz-')).forEach((k) => localStorage.removeItem(k)); } catch { /* storage unavailable */ }
     try { sessionStorage.clear(); } catch { /* storage unavailable */ }
     try { if (window.caches) for (const k of await caches.keys()) await caches.delete(k); } catch { /* ignore */ }
-    location.replace('/login?cleared=1'); return;
+    location.replace('/?cleared=1'); return;
   }
-  navigate('/login');
+  navigate('/', true);
 });
-$('#credit-pill').addEventListener('click', () => showLedger());
+$('#credit-pill').addEventListener('click', () => state.me ? showLedger() : openTeacherLogin('/account'));
 
 async function stage(renderer, q) { await catalog(); return renderer(root, { state, refreshMe, navigate, query: q }); }
 
@@ -97,25 +134,123 @@ export async function showLedger() {
 }
 
 // ---------- login ----------
-async function pageLogin() {
-  const cfg = await get('/api/public-config').catch(() => ({}));
-  root.innerHTML = `<div class="login-wrap"><form class="panel login-card" id="lf" autocomplete="on">
-    <div class="fs-switch" role="group" aria-label="字号"><button type="button" data-fs-set="m" title="标准字号">A</button><button type="button" data-fs-set="l" title="较大字号">A</button><button type="button" data-fs-set="xl" title="特大字号">A</button></div><div class="theme-switch" role="group" aria-label="显示模式"><button type="button" data-theme-set="auto" title="自动：跟随系统">◐</button><button type="button" data-theme-set="light" title="浅色">☀</button><button type="button" data-theme-set="dark" title="深色">☾</button></div><div class="login-logo"><img src="/img/logo-full.png" alt="研思智境 · Research · Reflection · Simulation · Improvement · Multi-Agent Teaching Research Intelligence"></div><h1 class="login-title">“研—演—评—改”多智能体数字教研实验工坊</h1><div class="small muted login-sub">教师登录</div>
-    <div style="display:grid;gap:12px"><label>登录名<input name="login" autocomplete="username" required></label><label>密码<input name="password" type="password" autocomplete="current-password" required></label>
-    <button class="primary" type="submit">登录</button>
-    <div class="row small"><a href="/admin/login">管理员入口</a><span class="grow"></span>${cfg.self_register ? '<a href="#" id="reg">注册教师账号</a>' : '<span class="faint">账号由管理员开通</span>'}</div></div></form></div>`;
-  if (new URLSearchParams(location.search).get('cleared')) toast('已退出并清空本机缓存');
-  $('#lf').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    try { await post('/api/auth/login', formData(e.target)); state.me = null; await refreshMe(); navigate(state.me?.must_change_password ? '/account' : '/'); } catch (err) { fail(err); }
-  });
-  $('#reg')?.addEventListener('click', async (e) => {
-    e.preventDefault();
-    await modal({ title: '注册教师账号', wide: true, body: `<div style="display:grid;gap:10px"><label>登录名<input id="rl" autocomplete="username"></label><label>显示名<input id="rn"></label><label>密码（≥8位，含字母和数字）<input id="rp" type="password" autocomplete="new-password"></label>
-      <div><div class="small" style="margin-bottom:6px">选择头像（3D 水晶球，注册后也可以在“账号”页更换）</div>${avatarPicker('u01', 'reg-ava')}</div></div>`,
-      buttons: [{ label: '取消', value: null }, { label: '注册', cls: 'primary', handler: async (m) => { await post('/api/auth/register', { login: $('#rl', m).value, display_name: $('#rn', m).value, password: $('#rp', m).value, avatar_key: m.querySelector('input[name="reg-ava"]:checked')?.value || 'u01' }); toast('注册成功，请登录'); } }] });
-  });
+const loginDialog = document.createElement('dialog');
+loginDialog.id = 'teacher-login';
+loginDialog.className = 'teacher-login';
+loginDialog.setAttribute('aria-labelledby', 'teacher-login-title');
+loginDialog.innerHTML = `<div class="auth-shell">
+  <button type="button" class="auth-close" aria-label="关闭登录框" title="关闭">×</button>
+  <img class="auth-mark" src="/img/logo-mark.png" alt="" width="48" height="48">
+  <p class="auth-eyebrow">演知思政 · 教师工作台</p>
+  <h2 id="teacher-login-title">登录</h2>
+  <p class="auth-context" id="auth-context">进入所选模块</p>
+  <form id="teacher-login-form" autocomplete="on">
+    <label>登录名<input name="login" autocomplete="username" required></label>
+    <label>密码<input name="password" type="password" autocomplete="current-password" required></label>
+    <p class="auth-error" id="auth-error" role="alert" hidden></p>
+    <button class="auth-submit" type="submit">登录 <span aria-hidden="true">↗</span></button>
+  </form>
+  <div class="auth-foot"><a href="/admin/login">管理员入口</a><a href="#" id="teacher-reg" hidden>注册教师账号</a><span id="teacher-reg-note">账号由管理员开通</span></div>
+</div>`;
+document.body.append(loginDialog);
+let pendingLoginTarget = '/';
+
+function openTeacherLogin(target = '/') {
+  pendingLoginTarget = target;
+  const names = { '/seminar': '研课场', '/classroom': '演课场', '/library': '产物库', '/agents': '智能体', '/research': '评价与科研', '/account': '账号与积分' };
+  const name = names[new URL(target, location.href).pathname];
+  $('#auth-context', loginDialog).textContent = name ? `进入${name}` : '教师工作台';
+  $('#auth-error', loginDialog).hidden = true;
+  if (!loginDialog.open) { loginDialog.showModal(); loginDialog.querySelector('input[name="login"]').focus(); }
+  get('/api/public-config').then((cfg) => {
+    $('#teacher-reg', loginDialog).hidden = !cfg.self_register;
+    $('#teacher-reg-note', loginDialog).hidden = !!cfg.self_register;
+  }).catch(() => {});
 }
+loginDialog.querySelector('.auth-close').addEventListener('click', () => loginDialog.close());
+loginDialog.addEventListener('click', (e) => { if (e.target === loginDialog) loginDialog.close(); });
+loginDialog.addEventListener('close', () => {
+  loginDialog.querySelector('input[name="password"]').value = '';
+  $('#auth-error', loginDialog).hidden = true;
+});
+loginDialog.querySelector('.auth-foot a').addEventListener('click', (e) => {
+  e.preventDefault();
+  loginDialog.close();
+  openAdminLogin();
+});
+$('#teacher-login-form', loginDialog).addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const submit = loginDialog.querySelector('.auth-submit');
+  const error = $('#auth-error', loginDialog);
+  submit.disabled = true; error.hidden = true;
+  try {
+    await post('/api/auth/login', formData(e.target));
+    const me = await refreshMe();
+    if (!me) throw new Error('登录成功，但未能读取教师账号，请重试');
+    const target = state.me.must_change_password ? '/account' : pendingLoginTarget;
+    loginDialog.close();
+    navigate(target);
+  } catch (err) { error.textContent = err.message || '登录失败，请重试'; error.hidden = false; }
+  finally { submit.disabled = false; }
+});
+$('#teacher-reg', loginDialog).addEventListener('click', async (e) => {
+  e.preventDefault(); loginDialog.close();
+  await modal({ title: '注册教师账号', wide: true, body: `<div style="display:grid;gap:10px"><label>登录名<input id="rl" autocomplete="username"></label><label>显示名<input id="rn"></label><label>密码（≥8位，含字母和数字）<input id="rp" type="password" autocomplete="new-password"></label>
+    <div><div class="small" style="margin-bottom:6px">选择头像（3D 水晶球，注册后也可以在“账号”页更换）</div>${avatarPicker('u01', 'reg-ava')}</div></div>`,
+    buttons: [{ label: '取消', value: null }, { label: '注册', cls: 'primary', handler: async (m) => { await post('/api/auth/register', { login: $('#rl', m).value, display_name: $('#rn', m).value, password: $('#rp', m).value, avatar_key: m.querySelector('input[name="reg-ava"]:checked')?.value || 'u01' }); toast('注册成功，请登录'); } }] });
+  openTeacherLogin(pendingLoginTarget);
+});
+
+const adminLoginDialog = document.createElement('dialog');
+adminLoginDialog.id = 'admin-login';
+adminLoginDialog.className = 'teacher-login';
+adminLoginDialog.setAttribute('aria-labelledby', 'admin-login-title');
+adminLoginDialog.innerHTML = `<div class="auth-shell">
+  <button type="button" class="auth-close" aria-label="关闭登录框" title="关闭">×</button>
+  <img class="auth-mark" src="/img/logo-mark.png" alt="" width="48" height="48">
+  <p class="auth-eyebrow">演知思政 · 管理后台</p>
+  <h2 id="admin-login-title">登录</h2>
+  <p class="auth-context">管理后台</p>
+  <form id="admin-login-form" autocomplete="on">
+    <label>登录名<input name="login" autocomplete="username" required></label>
+    <label>密码<input name="password" type="password" autocomplete="current-password" required></label>
+    <p class="auth-error" role="alert" hidden></p>
+    <button class="auth-submit" type="submit">登录 <span aria-hidden="true">↗</span></button>
+  </form>
+  <div class="auth-foot"><a href="/login" id="back-to-teacher">教师入口</a></div>
+</div>`;
+document.body.append(adminLoginDialog);
+
+function openAdminLogin() {
+  if (loginDialog.open) loginDialog.close();
+  adminLoginDialog.querySelector('.auth-error').hidden = true;
+  if (!adminLoginDialog.open) {
+    adminLoginDialog.showModal();
+    adminLoginDialog.querySelector('input[name="login"]').focus();
+  }
+}
+adminLoginDialog.querySelector('.auth-close').addEventListener('click', () => adminLoginDialog.close());
+adminLoginDialog.addEventListener('click', (e) => { if (e.target === adminLoginDialog) adminLoginDialog.close(); });
+adminLoginDialog.addEventListener('close', () => {
+  adminLoginDialog.querySelector('input[name="password"]').value = '';
+  adminLoginDialog.querySelector('.auth-error').hidden = true;
+});
+adminLoginDialog.querySelector('#back-to-teacher').addEventListener('click', (e) => {
+  e.preventDefault();
+  adminLoginDialog.close();
+  openTeacherLogin(pendingLoginTarget);
+});
+adminLoginDialog.querySelector('form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const submit = adminLoginDialog.querySelector('.auth-submit');
+  const error = adminLoginDialog.querySelector('.auth-error');
+  submit.disabled = true; error.hidden = true;
+  try {
+    await post('/api/admin/auth/login', formData(e.target));
+    location.assign('/admin');
+  } catch (err) { error.textContent = err.message || '登录失败，请重试'; error.hidden = false; }
+  finally { submit.disabled = false; }
+});
 
 // ---------- library & editor ----------
 // 产物分层：专业 → 课程 → 课堂 → 练习评价 → 反馈反思 → 知识图谱
